@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>UIApplicationSceneManifest</key>
+	<dict>
+		<key>UIApplicationPreferredDefaultSceneSessionRole</key>
+		<string>UIWindowSceneSessionRoleApplication</string>
+		<key>UIApplicationSupportsMultipleScenes</key>
+		<true/>
+		<key>UISceneConfigurations</key>
+		<dict>
+			<key>UISceneSessionRoleImmersiveSpaceApplication</key>
+			<array>
+				<dict>
+					<key>UISceneInitialImmersionStyle</key>
+					<string>UIImmersionStyleMixed</string>
+				</dict>
+			</array>
+		</dict>
+	</dict>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>此应用需要位置权限以显示地图功能。</string>
+	<key>NSLocationTemporaryUsageDescriptionDictionary</key>
+	<dict/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>ReaLink需要获取您的位置信息，以便为您推送附近相关问题的通知</string>
+    <key>NSWorldSensingUsageDescription</key>
+    <string>ReaLink需要使用空间感知功能来准确定位您圈选的场景区域，以便进行AI场景识别</string>
+    <key>NSHandsTrackingUsageDescription</key>
+    <string>ReaLink需要追踪手部动作来实现空间圈选功能</string>
+    <key>NSCameraUsageDescription</key>
+    <string>ReaLink需要使用相机来捕捉和识别场景内容</string>
+	<key>NSHandsTrackingUsageDescription</key>
+	<string>This app uses hand tracking to detect gestures for menu control.</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoads</key>
+		<true/>
+	</dict>
+	<key>UIApplicationSupportsMultipleScenes</key>
+	<true/>
+</dict>
+</plist>

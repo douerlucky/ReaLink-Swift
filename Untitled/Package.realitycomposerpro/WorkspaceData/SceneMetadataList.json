@@ -1,0 +1,177 @@
+{
+  "14AADC87-29AA-44F6-945C-FD0B79E26001" : {
+    "objectMetadataList" : [
+      [
+        "14AADC87-29AA-44F6-945C-FD0B79E26001",
+        "Root"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      }
+    ]
+  },
+  "22927A12-B384-410F-8C5A-F10C1DCAF0B2" : {
+    "objectMetadataList" : [
+      [
+        "22927A12-B384-410F-8C5A-F10C1DCAF0B2",
+        "Root",
+        "Sign"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "22927A12-B384-410F-8C5A-F10C1DCAF0B2",
+        "Root",
+        "Group"
+      ],
+      {
+        "disallowsFraming" : false,
+        "isExpanded" : false,
+        "isLocked" : false
+      },
+      [
+        "22927A12-B384-410F-8C5A-F10C1DCAF0B2",
+        "Root",
+        "Group",
+        "DrumStick",
+        "geom",
+        "realistic",
+        "geo"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "22927A12-B384-410F-8C5A-F10C1DCAF0B2",
+        "Sign",
+        "DrumStick",
+        "geom",
+        "realistic",
+        "geo"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "22927A12-B384-410F-8C5A-F10C1DCAF0B2",
+        "Root",
+        "Group",
+        "DrumStick",
+        "geom"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "22927A12-B384-410F-8C5A-F10C1DCAF0B2",
+        "Root",
+        "Group",
+        "DrumStick",
+        "geom",
+        "realistic",
+        "materials"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "22927A12-B384-410F-8C5A-F10C1DCAF0B2",
+        "Sign",
+        "DrumStick",
+        "geom",
+        "realistic",
+        "materials"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "22927A12-B384-410F-8C5A-F10C1DCAF0B2",
+        "Root",
+        "Group",
+        "DrumStick",
+        "geom",
+        "realistic",
+        "geo",
+        "lod0"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "22927A12-B384-410F-8C5A-F10C1DCAF0B2",
+        "Sign",
+        "DrumStick",
+        "geom"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "22927A12-B384-410F-8C5A-F10C1DCAF0B2",
+        "Root",
+        "Group",
+        "Sign"
+      ],
+      {
+        "disallowsFraming" : false,
+        "isExpanded" : false,
+        "isLocked" : false
+      },
+      [
+        "22927A12-B384-410F-8C5A-F10C1DCAF0B2",
+        "Root"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "22927A12-B384-410F-8C5A-F10C1DCAF0B2",
+        "Sign",
+        "DrumStick",
+        "geom",
+        "realistic"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "22927A12-B384-410F-8C5A-F10C1DCAF0B2",
+        "Root",
+        "Group",
+        "DrumStick",
+        "geom",
+        "realistic"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      },
+      [
+        "22927A12-B384-410F-8C5A-F10C1DCAF0B2",
+        "Sign",
+        "DrumStick",
+        "geom",
+        "realistic",
+        "geo",
+        "lod0"
+      ],
+      {
+        "isExpanded" : true,
+        "isLocked" : false
+      }
+    ]
+  }
+}
