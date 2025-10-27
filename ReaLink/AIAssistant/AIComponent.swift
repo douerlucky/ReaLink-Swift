@@ -1187,16 +1187,6 @@ extension AIAssistant
     }
 }
 
-// MARK: - 场景识别状态枚举
-
-enum SceneRecognitionState
-{
-    case idle // 未开始
-    case drawing // 正在绘画
-    case waitingConfirm // 等待确认
-    case recognizing // AI识别中
-    case completed // 识别完成
-}
 
 // MARK: - 重构后的AIAssistantWindow（复用核心逻辑）
 

@@ -16,6 +16,12 @@ struct ModelSelectionSection: View
     @Binding var showModelTypePicker: Bool
     @Binding var isAddingModel: Bool
     
+    // ✅ 长按手势状态
+    @State private var isLongPressing = false
+    @State private var longPressProgress: Double = 0.0
+    @State private var pressStartTime: Date?  // 记录按压开始时间
+    @State private var progressTimer: Timer?  // 进度计时器
+    
     var body: some View
     {
         VStack(spacing: 20)
@@ -29,53 +35,117 @@ struct ModelSelectionSection: View
                 Spacer()
             }
             
-            // 模型类型选择
+            // 模型类型选择 + 长按生成功能
             VStack(alignment: .center, spacing: 12)
             {
-                Button(action: { showModelTypePicker = true })
+                // ✅ 修复：不用Button，直接用VStack + 手势
+                VStack(spacing: 8)
                 {
-                    VStack(spacing: 8)
+                    // 3D预览包裹在ZStack中，添加长按进度指示
+                    ZStack
                     {
                         Model3DPreview(modelType: modelManager.selectedModelType)
                             .frame(width: 80, height: 80)
-
-                        Text(modelTypeName(modelManager.selectedModelType))
-                            .font(.caption)
-                            .foregroundColor(.primary)
+                        
+                        // ✅ 长按进度环
+                        if isLongPressing
+                        {
+                            Circle()
+                                .trim(from: 0, to: longPressProgress)
+                                .stroke(
+                                    Color.blue,
+                                    style: StrokeStyle(lineWidth: 4, lineCap: .round)
+                                )
+                                .frame(width: 90, height: 90)
+                                .rotationEffect(.degrees(-90))
+                                .animation(.linear(duration: 0.1), value: longPressProgress)
+                        }
                     }
+
+                    Text(modelTypeName(modelManager.selectedModelType))
+                        .font(.caption)
+                        .foregroundColor(.primary)
                 }
                 .frame(width: 120, height: 120)
                 .background(
                     RoundedRectangle(cornerRadius: 12)
-                        .fill(.blue.opacity(0.05))
+                        .fill(isLongPressing ? .blue.opacity(0.15) : .blue.opacity(0.05))
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 12)
-                        .stroke(.blue.opacity(0.3), lineWidth: 2)
+                        .stroke(isLongPressing ? .blue : .blue.opacity(0.3), lineWidth: isLongPressing ? 3 : 2)
                 )
-                .buttonStyle(.plain)
                 .hoverEffect(.highlight)
+                .scaleEffect(isLongPressing ? 0.95 : 1.0)
+                .animation(.easeInOut(duration: 0.2), value: isLongPressing)
+                // ✅✅✅ 修复方案：使用DragGesture替代，避免手势冲突
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { _ in
+                            // 第一次触发时记录开始时间
+                            if pressStartTime == nil {
+                                pressStartTime = Date()
+                                print("👆 开始按压")
+                                
+                                // 延迟0.3秒后显示进度环
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                    if let startTime = pressStartTime,
+                                       Date().timeIntervalSince(startTime) >= 0.3 {
+                                        withAnimation {
+                                            isLongPressing = true
+                                        }
+                                        // 启动进度动画
+                                        startProgressTimer()
+                                    }
+                                }
+                                
+                                // 🌟 延迟1.5秒后启动手部附着
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                                    if let startTime = pressStartTime,
+                                       Date().timeIntervalSince(startTime) >= 1.5 {
+                                        print("🤲 长按达到1.5秒，启动手部附着")
+                                        attachModelToHandAction()
+                                    }
+                                }
+                            }
+                        }
+                        .onEnded { _ in
+                            // 计算按压时长
+                            let pressDuration = pressStartTime.map { Date().timeIntervalSince($0) } ?? 0
+                            print("✋ 松手，按压时长: \(pressDuration)秒")
+                            
+                            // 停止进度计时器
+                            stopProgressTimer()
+                            
+                            if pressDuration >= 1.5 {
+                                // 🌟 长按且已松开：固定模型到当前位置
+                                print("🎯 松开手指，固定模型")
+                                detachModelFromHandAction()
+                            } else if pressDuration < 0.3 {
+                                // 短按：打开模型选择器
+                                print("👆 短按（\(pressDuration)秒），打开模型选择器")
+                                showModelTypePicker = true
+                            } else {
+                                // 中等长度：不做任何操作
+                                print("⏱️ 按压时长\(pressDuration)秒，未达到长按阈值")
+                            }
+                            
+                            // 重置状态
+                            pressStartTime = nil
+                            withAnimation {
+                                isLongPressing = false
+                                longPressProgress = 0.0
+                            }
+                        }
+                )
                 
-                Text("点击选择模型类型")
+                Text("点击切换 / 长按1.5秒附着到手上")
                     .font(.caption2)
                     .foregroundColor(.secondary)
             }
             .frame(maxWidth: .infinity)
-
-            // 添加模型按钮
-            Button(action: addModelAction)
-            {
-                HStack
-                {
-                    Image(systemName: "plus.circle")
-                    Text("添加模型")
-                }
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.large)
-            .frame(maxWidth: .infinity)
             
-            // 提示信息
+            // ✅ 更新后的提示信息
             VStack(alignment: .leading, spacing: 8)
             {
                 Text("💡 操作提示")
@@ -83,7 +153,7 @@ struct ModelSelectionSection: View
                     .fontWeight(.medium)
                     .foregroundColor(.blue)
 
-                Text("• 点击上方卡片选择模型类型\n• 点击「添加模型」在场景中放置\n• 放置后可拖动调整位置")
+                Text("• 点击卡片：切换模型类型\n• 长按1.5秒：模型附着到手上\n• 移动手部：调整模型位置\n• 松开手：模型固定到当前位置\n• 放置后：可拖动、捏合缩放调整")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .lineSpacing(2)
@@ -95,6 +165,32 @@ struct ModelSelectionSection: View
         .padding(20)
         .background(.ultraThinMaterial)
         .cornerRadius(16)
+    }
+    
+    // ✅ 启动长按进度计时器
+    private func startProgressTimer() {
+        longPressProgress = 0.0
+        
+        // 清除旧的计时器
+        stopProgressTimer()
+        
+        progressTimer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [self] timer in
+            if isLongPressing {
+                longPressProgress += 0.042 // 在1.2秒内完成 (0.042 × 24 ≈ 1.0)
+                if longPressProgress >= 1.0 {
+                    longPressProgress = 1.0
+                    timer.invalidate()
+                }
+            } else {
+                timer.invalidate()
+            }
+        }
+    }
+    
+    // ✅ 停止进度计时器
+    private func stopProgressTimer() {
+        progressTimer?.invalidate()
+        progressTimer = nil
     }
     
     private func addModelAction()
@@ -144,6 +240,72 @@ struct ModelSelectionSection: View
             isAddingModel = false
             print("添加模型处理标志已重置")
         }
+    }
+    
+    // 🌟 新增：附着模型到手上
+    private func attachModelToHandAction()
+    {
+        guard !isAddingModel
+        else
+        {
+            print("⚠️ 正在处理添加操作,跳过重复请求")
+            return
+        }
+
+        print("🤲 附着模型到手上,当前选择类型: \(modelManager.selectedModelType.rawValue)")
+
+        isAddingModel = true
+
+        // 🔥 修复：Sign模型使用默认brown，其他模型使用当前选择的颜色
+        let finalColor: Color
+        if modelManager.selectedModelType == .sign {
+            finalColor = .brown
+        } else {
+            finalColor = modelManager.cubeColor
+        }
+        
+        let colorComponents = finalColor.cgColor?.components ?? [0, 0, 1, 1]
+        let userInfo: [String: Any] = [
+            "modelType": modelManager.selectedModelType.rawValue,
+            "color": [
+                "red": Float(colorComponents[0]),
+                "green": Float(colorComponents[1]),
+                "blue": Float(colorComponents[2]),
+                "alpha": Float(colorComponents.count > 3 ? colorComponents[3] : 1.0),
+            ],
+            "size": modelManager.cubeSize,
+            "opacity": modelManager.modelOpacity,
+        ]
+
+        // 🌟 发送附着到手上的通知
+        NotificationCenter.default.post(
+            name: NSNotification.Name("AttachModelToHand"),
+            object: nil,
+            userInfo: userInfo
+        )
+
+        print("已发送附着模型到手上通知")
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3)
+        {
+            isAddingModel = false
+            print("附着模型处理标志已重置")
+        }
+    }
+    
+    // 🌟 新增：从手上分离模型（固定到当前位置）
+    private func detachModelFromHandAction()
+    {
+        print("🤲 从手上分离模型，固定到当前位置")
+        
+        // 发送分离通知
+        NotificationCenter.default.post(
+            name: NSNotification.Name("DetachModelFromHand"),
+            object: nil,
+            userInfo: nil
+        )
+        
+        print("已发送分离模型通知")
     }
     
     func modelTypeName(_ type: ModelType) -> String

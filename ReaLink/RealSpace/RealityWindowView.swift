@@ -10,8 +10,8 @@ import RealityFoundation
 import RealityKit
 import SwiftUI
 
-
-struct RealityWindowView: View {
+struct RealityWindowView: View
+{
     @Environment(\.dismissWindow) public var dismissWindow
     @Environment(\.openWindow) public var openWindow
     @Environment(\.scenePhase) private var scenePhase
@@ -21,17 +21,21 @@ struct RealityWindowView: View {
     @EnvironmentObject var windowStateManager: WindowStateManager
     @State public var showQuestionDetail = false
     @State private var showModelsManagement = false
-    var body: some View {
-        ZStack {
-            if showQuestionDetail {
+    var body: some View
+    {
+        ZStack
+        {
+            if showQuestionDetail
+            {
                 QuestionDetailModalWithTabs.forReality(
                     question: targetQuestion.currentQuestion,
                     isPresented: $showQuestionDetail,
                     onClose: {
-                        withAnimation(.spring(response: 0.6, dampingFraction: 0.85)) {
+                        withAnimation(.spring(response: 0.6, dampingFraction: 0.85))
+                        {
                             showQuestionDetail = false
                         }
-                       
+
                     },
                     onSendReply: { replyText in
                         handleSendReply(replyText)
@@ -52,12 +56,16 @@ struct RealityWindowView: View {
                             .combined(with: .scale(scale: 0.9))
                     )
                 )
-            } else {
-                VStack(alignment: .leading, spacing: 20) {
+            }
+            else
+            {
+                VStack(alignment: .leading, spacing: 20)
+                {
                     QuestionCard.detailed(
                         question: targetQuestion.currentQuestion,
                         onSelect: {
-                            withAnimation(.spring(response: 0.7, dampingFraction: 0.8)) {
+                            withAnimation(.spring(response: 0.7, dampingFraction: 0.8))
+                            {
                                 showQuestionDetail = true
                             }
                         },
@@ -76,72 +84,88 @@ struct RealityWindowView: View {
             minWidth: showQuestionDetail ? 800 : 450,
             minHeight: showQuestionDetail ? 600 : 240
         )
-        .onChange(of: scenePhase) { oldPhase, newPhase in
+        .onChange(of: scenePhase)
+        { oldPhase, newPhase in
             handleScenePhaseChange(oldPhase: oldPhase, newPhase: newPhase)
         }
-        .onDisappear {
+        .onDisappear
+        {
             handleWindowDisappear()
         }
     }
 
-    private func performCleanup() {
+    private func performCleanup()
+    {
         print("🧹【开始清理RealityWindow资源】")
-        
+
         // 发送通知
         NotificationCenter.default.post(
             name: NSNotification.Name("RealityWindowClosed"),
             object: nil
         )
-        
+
         windowStateManager.isRealityWindowOpen = false
-        
+
         print("✅【RealityWindow清理完成】")
     }
-    
-    private func handleScenePhaseChange(oldPhase: ScenePhase, newPhase: ScenePhase) {
+
+    private func handleScenePhaseChange(oldPhase: ScenePhase, newPhase: ScenePhase)
+    {
         print("🔄 RealityWindow 场景阶段变化: \(oldPhase) -> \(newPhase)")
-        
-        if newPhase == .background || newPhase == .inactive {
+
+        if newPhase == .background || newPhase == .inactive
+        {
             print("🔴 检测到窗口被关闭")
             performCleanup()
         }
     }
-    
-    private func handleWindowDisappear() {
+
+    private func handleWindowDisappear()
+    {
         print("🔴 RealityWindow onDisappear 被触发")
         performCleanup()
     }
-    
-    public func handleSendReply(_ replyText: String) {
-        guard let currentUserId = userManager.getUserId() else {
+
+    public func handleSendReply(_ replyText: String)
+    {
+        guard let currentUserId = userManager.getUserId()
+        else
+        {
             print("用户未登录")
             return
         }
-        
-        Task {
-            do {
+
+        Task
+        {
+            do
+            {
                 let response = try await NetworkManager.shared.sendAnswer(
                     questionId: targetQuestion.currentQuestion.id,
                     userId: currentUserId,
                     content: replyText
                 )
-                
-                if response.success {
+
+                if response.success
+                {
                     print("回复发送成功")
-                    
+
                     NotificationCenter.default.post(
                         name: NSNotification.Name("ReplySuccessReloadAnswers"),
                         object: nil,
                         userInfo: ["questionId": targetQuestion.currentQuestion.id]
                     )
                 }
-            } catch {
+            }
+            catch
+            {
                 print("发送回复时出现错误: \(error)")
             }
         }
     }
 }
-#Preview(windowStyle: .automatic) {
+
+#Preview(windowStyle: .automatic)
+{
     RealityWindowView()
         .frame(width: 450)
         .environmentObject({

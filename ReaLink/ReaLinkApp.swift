@@ -167,7 +167,6 @@ struct ReaLinkApp: App {
             ModelsListManagementView()
                 .environmentObject(userManager)
                 .frame(width: 400, height: 600)
-                .persistentSystemOverlays(.hidden)
         }
         .windowResizability(.contentSize)
         .defaultSize(width: 400, height: 600)
@@ -191,7 +190,6 @@ struct ReaLinkApp: App {
                     )
                     print("🔴 RealityWindow 已关闭，通知已发送")
                 }
-                .persistentSystemOverlays(.hidden)
         }
         .windowResizability(.contentSize)
         
@@ -232,14 +230,13 @@ struct ReaLinkApp: App {
                     windowStateManager.isControlMenuWindowOpen = false
                 }
                 .frame(width: 450)
-                .persistentSystemOverlays(.hidden)
+
         }
         .windowResizability(.contentSize)
         
         WindowGroup(id: "BrushControlWindow") {
             BrushControlWindow()
                 .frame(width: 400)
-                .persistentSystemOverlays(.hidden)
         }
         .windowResizability(.contentSize)
         .defaultSize(width: 400, height: 600)
@@ -260,7 +257,6 @@ struct ReaLinkApp: App {
         WindowGroup(id: "ModelControlWindow") {
             ModelControlWindow()
                 .frame(width: 400)
-                .persistentSystemOverlays(.hidden)
         }
         .windowResizability(.contentSize)
         .defaultSize(width: 400, height: 700)
@@ -307,22 +303,35 @@ struct ReaLinkApp: App {
         }
         
         isCleaningUp = true
-        print("🧹 【开始执行后台清理】")
+        print("🧹 【开始执行后台清理 - Vision Pro 已摘下】")
         
         Task { @MainActor in
-            // 1️⃣ 关闭所有ImmersiveSpace
-            await closeAllImmersiveSpaces()
+            // 0️⃣ 🔥 先发送重置通知，让 BasicPanoramaView 清理状态
+            NotificationCenter.default.post(
+                name: NSNotification.Name("ResetAllVRStates"),
+                object: nil
+            )
+            print("📢 已发送重置所有VR状态通知")
             
-            // 2️⃣ 关闭所有关联窗口
+            // 等待一小段时间让通知处理完成
+            try? await Task.sleep(nanoseconds: 200_000_000) // 0.2秒
+            
+            // 1️⃣ 关闭所有关联窗口
             closeAllAssociatedWindows()
             
-            // 3️⃣ 重置所有状态
+            // 2️⃣ 等待窗口关闭完成
+            try? await Task.sleep(nanoseconds: 300_000_000) // 0.3秒
+            
+            // 3️⃣ 关闭所有ImmersiveSpace
+            await closeAllImmersiveSpaces()
+            
+            // 4️⃣ 重置所有状态
             resetAllStates()
             
-            // 4️⃣ 确保回到MainTabView
+            // 5️⃣ 确保回到MainTabView
             ensureMainTabViewActive()
             
-            print("✅ 【后台清理完成】")
+            print("✅ 【后台清理完成 - 已恢复到初始状态】")
         }
     }
     

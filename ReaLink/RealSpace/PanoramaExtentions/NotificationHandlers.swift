@@ -239,6 +239,30 @@ extension BasicPanoramaView {
         }
         notificationObservers.append(addCubeObserver)
         
+        // 🌟 新增：手部附着模型通知
+        let attachToHandObserver = NotificationCenter.default.addObserver(
+            forName: NSNotification.Name("AttachModelToHand"),
+            object: nil,
+            queue: .main
+        ) { notification in
+            print("🤲【通知】收到附着模型到手上指令")
+            if let userInfo = notification.userInfo {
+                self.handleAttachModelToHandNotification(userInfo)
+            }
+        }
+        notificationObservers.append(attachToHandObserver)
+        
+        // 🌟 新增：停止手部附着通知
+        let detachFromHandObserver = NotificationCenter.default.addObserver(
+            forName: NSNotification.Name("DetachModelFromHand"),
+            object: nil,
+            queue: .main
+        ) { _ in
+            print("🤲【通知】收到停止附着模型指令")
+            self.stopAttachingModelToHand()
+        }
+        notificationObservers.append(detachFromHandObserver)
+        
         // 清空模型通知
         let clearModelsObserver = NotificationCenter.default.addObserver(
             forName: NSNotification.Name("ClearAllModels"),
@@ -367,9 +391,9 @@ extension BasicPanoramaView {
             )
             print("🎯 使用指定位置: \(position)")
         } else {
-            // 🌟 新增：获取用户面前的位置
-            position = getUserFacingPosition()
-            print("🎯 使用用户前方位置: \(position)")
+            // 🌟 修改：使用真实的 ARKit 数据获取用户前方位置
+            position = getUserFacingPosition(distanceInFront: 1.0)  // ✅ 改为1.0米，更靠近用户
+                print("🎯 使用用户视线前方位置: \(position)")
         }
         
         // 🔥 修复：解析缩放信息
@@ -473,26 +497,63 @@ extension BasicPanoramaView {
             }
         }
     }
+    
+    // 🌟 新增：处理附着模型到手上的通知
+    func handleAttachModelToHandNotification(_ userInfo: [AnyHashable: Any]) {
+        guard modelManager.isModelTestingEnabled else {
+            print("⚠️ 模型测试未启用")
+            return
+        }
+        
+        // 解析参数
+        let modelTypeString = userInfo["modelType"] as? String ?? "cube"
+        let modelType = ModelType(rawValue: modelTypeString) ?? .cube
+        
+        var color = Color.blue
+        if let colorInfo = userInfo["color"] as? [String: CGFloat] {
+            let red = colorInfo["red"] ?? 0.0
+            let green = colorInfo["green"] ?? 0.0
+            let blue = colorInfo["blue"] ?? 1.0
+            let alpha = colorInfo["alpha"] ?? 1.0
+            color = Color(red: red, green: green, blue: blue, opacity: alpha)
+        }
+        
+        let size = userInfo["size"] as? Float ?? modelManager.cubeSize
+        let opacity = userInfo["opacity"] as? Float ?? modelManager.modelOpacity
+        
+        print("🤲【开始附着模型到手上】")
+        print("   - 类型: \(modelType.rawValue)")
+        print("   - 颜色: \(color)")
+        print("   - 大小: \(size)")
+        print("   - 不透明度: \(opacity)")
+        
+        // 调用附着方法
+        startAttachingModelToHand(
+            modelType: modelType,
+            color: color,
+            size: size,
+            opacity: opacity
+        )
+    }
+    
     func addCube() {
         guard modelManager.isModelTestingEnabled else {
             print("模型测试未启用")
             return
         }
-        
-        // 🌟 使用用户面前的位置而不是固定位置
-        let userFacingPosition = getUserFacingPosition()
+        let userFacingPosition = getUserFacingPosition(distanceInFront: 1.0)  // ✅ 改为1.0米
         
         print("🎯【addCube】使用用户前方位置: \(userFacingPosition)")
         
         DispatchQueue.main.async {
-            self.addModelAt(
-                position: userFacingPosition,
-                type: self.modelManager.selectedModelType,
-                color: self.modelManager.cubeColor,
-                size: self.modelManager.cubeSize,
-                opacity: self.modelManager.modelOpacity
-            )
-        }
+               self.addModelAt(
+                   position: userFacingPosition,
+                   type: self.modelManager.selectedModelType,
+                   color: self.modelManager.cubeColor,
+                   size: self.modelManager.cubeSize,
+                   opacity: self.modelManager.modelOpacity
+               )
+           }
     }
     
     func addModelAt(position: SIMD3<Float>, type: ModelType, color: Color, size: Float, opacity: Float, userId: Int64? = nil) {

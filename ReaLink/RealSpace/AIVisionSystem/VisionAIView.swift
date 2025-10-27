@@ -11,6 +11,15 @@
 
 import SwiftUI
 
+// MARK: - 🎯 场景识别状态枚举
+enum SceneRecognitionState: Equatable {
+    case idle           // 空闲
+    case drawing        // 正在绘制
+    case waitingConfirm // 等待确认
+    case recognizing    // AI识别中
+    case completed      // 识别完成
+}
+
 // MARK: - 🎯 场景识别入口按钮（保持不变）
 struct SceneRecognitionEntryButton: View {
     let onTap: () -> Void

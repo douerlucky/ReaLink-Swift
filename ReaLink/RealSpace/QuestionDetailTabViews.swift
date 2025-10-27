@@ -31,6 +31,7 @@ struct QuestionConversationTab: View
 
 // MARK: - 空间绘画Tab（保持不变）
 
+
 struct SpatialPaintingTab: View
 {
     let question: Question
@@ -175,10 +176,10 @@ struct SpatialPaintingTab: View
     // MARK: - 绘画底部操作栏
     private var paintingBottomBar: some View
     {
-        HStack(spacing: 0)
+        HStack(spacing: 12)
         {
-            // 左下角：撤回、清空
-            HStack(spacing: 12)
+            // 左边：撤回、清空（超级紧凑！）
+            HStack(spacing: 8)
             {
                 // 撤回按钮
                 Button(action: {
@@ -187,13 +188,15 @@ struct SpatialPaintingTab: View
                 })
                 {
                     Image(systemName: "arrow.uturn.backward")
-                        .font(.title2)
+                        .font(.title3)
                         .foregroundColor(.white)
-                        .frame(width: 44, height: 44)
+                        .frame(width: 64, height: 64)  // 改大按钮尺寸
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.blue)
+                .clipShape(Circle())
                 .disabled(!brushManager.isPaintingEnabled)
+                .buttonBorderShape(.circle)  // 添加圆形边框
                 
                 // 清空画布按钮
                 Button(action: {
@@ -202,49 +205,53 @@ struct SpatialPaintingTab: View
                 })
                 {
                     Image(systemName: "trash")
-                        .font(.title2)
+                        .font(.title3)
                         .foregroundColor(.white)
-                        .frame(width: 44, height: 44)
+                        .frame(width: 64, height: 64)  // 改大按钮尺寸
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.red)
+                .clipShape(Circle())
                 .disabled(!brushManager.isPaintingEnabled)
+                .buttonBorderShape(.circle)  // 添加圆形边框
+                
+                Spacer()
             }
-            .padding(.horizontal, 24)
             
             Spacer()
             
-            // 右下角：Toggle开关、刷新、保存
-            HStack(spacing: 12)
+            // 中间：空间绘画开关（单独，居中）
+            Button(action: {
+                brushManager.isPaintingEnabled.toggle()
+                print("🎨 空间绘画模式切换: \(brushManager.isPaintingEnabled)")
+            })
             {
-                // 绘画开关
-                Button(action: {
-                    brushManager.isPaintingEnabled.toggle()
-                    print("🎨 绘画模式切换: \(brushManager.isPaintingEnabled)")
-                })
+                HStack(spacing: 8)
                 {
-                    HStack(spacing: 8)
-                    {
-                        Image(systemName: brushManager.isPaintingEnabled ? "paintbrush.fill" : "paintbrush")
-                            .font(.title3)
-                        
-                        Text(brushManager.isPaintingEnabled ? "已启用" : "已禁用")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                    }
-                    .foregroundColor(.white)
-                    .frame(height: 44)
-                    .padding(.horizontal, 16)
+                    Image(systemName: brushManager.isPaintingEnabled ? "paintbrush.pointed.fill" : "paintbrush.pointed")
+                        .font(.title3)
+                    
+                    Text(brushManager.isPaintingEnabled ? "已启用" : "已禁用")
+                        .font(.callout)
+                        .fontWeight(.medium)
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(brushManager.isPaintingEnabled ? .green : .gray)
-                
+                .frame(width: 156, height: 64)  // 改大按钮尺寸
+                .foregroundColor(.white)
+                .padding(.horizontal, 16)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(brushManager.isPaintingEnabled ? .green : .gray)
+            
+            Spacer()
+            
+            // 右边：刷新、保存（超级紧凑！）
+            HStack(spacing: 8)
+            {
                 // 刷新按钮
                 Button(action: {
                     print("🎨 用户点击刷新绘画数据按钮")
                     isRefreshingPainting = true
                     NotificationCenter.default.post(name: NSNotification.Name("RefreshPainting"), object: nil)
-
                     DispatchQueue.main.asyncAfter(deadline: .now() + 2.0)
                     {
                         isRefreshingPainting = false
@@ -254,55 +261,55 @@ struct SpatialPaintingTab: View
                     if isRefreshingPainting
                     {
                         ProgressView()
-                            .scaleEffect(0.8)
-                            .frame(width: 44, height: 44)
+                            .scaleEffect(0.7)
+                            .frame(width: 64, height: 64)  // 改大按钮尺寸
                     }
                     else
                     {
                         Image(systemName: "arrow.clockwise")
-                            .font(.title2)
+                            .font(.title3)
                             .foregroundColor(.white)
-                            .frame(width: 44, height: 44)
+                            .frame(width: 64, height: 64)  // 改大按钮尺寸
                     }
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.blue)
-                .disabled(isRefreshingPainting)
+                .clipShape(Circle())
+                .disabled(isRefreshingPainting || !brushManager.isPaintingEnabled)
+                .buttonBorderShape(.circle)  // 添加圆形边框
                 
                 // 保存按钮
                 Button(action: onSave)
                 {
-                    HStack(spacing: 8)
+                    HStack(spacing: 4)
                     {
                         if isSavingPainting
                         {
                             ProgressView()
-                                .scaleEffect(0.8)
+                                .scaleEffect(0.7)
+                                .frame(width: 64, height: 64)
                         }
                         else
                         {
                             Image(systemName: "square.and.arrow.up")
                                 .font(.title3)
+                                .foregroundColor(.white)
+                                .frame(width: 64, height: 64)  // 改大按钮尺寸
                         }
-                        Text("保存")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
                     }
+                    
                     .foregroundColor(.white)
-                    .frame(height: 44)
-                    .padding(.horizontal, 16)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.green)
                 .disabled(isSavingPainting || !brushManager.isPaintingEnabled)
             }
-            .padding(.horizontal, 24)
         }
-        .padding(.vertical, 16)
+        .padding(.vertical, 12)
+        .padding(.horizontal, 20)
         .glassBackgroundEffect()
     }
 }
-
 
 // MARK: - 模型放置Tab（修复版 - 移除默认颜色）
 
@@ -428,10 +435,10 @@ struct ModelPlacementTab: View
     // MARK: - 模型底部操作栏
     private var modelBottomBar: some View
     {
-        HStack(spacing: 0)
+        HStack(spacing: 12)
         {
-            // 左下角：撤回、清空
-            HStack(spacing: 12)
+            // 左边：撤回、清空（超级紧凑！）
+            HStack(spacing: 8)
             {
                 // 撤回按钮
                 Button(action: {
@@ -443,14 +450,16 @@ struct ModelPlacementTab: View
                 })
                 {
                     Image(systemName: "arrow.uturn.backward")
-                        .font(.title2)
+                        .font(.title3)
                         .foregroundColor(.white)
-                        .frame(width: 44, height: 44)
+                        .frame(width: 64, height: 64)  // 改小按钮尺寸
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.blue)
+                .clipShape(Circle())
                 .disabled(!modelManager.isModelTestingEnabled)
-
+                .buttonBorderShape(.circle)  // 添加这个
+                
                 // 清空按钮
                 Button(action: {
                     print("🧊 清空所有模型")
@@ -458,43 +467,48 @@ struct ModelPlacementTab: View
                 })
                 {
                     Image(systemName: "trash")
-                        .font(.title2)
+                        .font(.title3)
                         .foregroundColor(.white)
-                        .frame(width: 44, height: 44)
+                        .frame(width: 64, height: 64)  // 改小按钮尺寸
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.red)
+                .clipShape(Circle())
                 .disabled(!modelManager.isModelTestingEnabled)
-            }
-            .padding(.horizontal, 24)
-
-            Spacer()
-
-            // 右下角：模型开关、管理、刷新、保存
-            HStack(spacing: 12)
-            {
-                // 模型测试开关
-                Button(action: {
-                    modelManager.isModelTestingEnabled.toggle()
-                    print("🧊 模型测试模式切换: \(modelManager.isModelTestingEnabled)")
-                })
-                {
-                    HStack(spacing: 8)
-                    {
-                        Image(systemName: modelManager.isModelTestingEnabled ? "cube.fill" : "cube")
-                            .font(.title3)
-                        
-                        Text(modelManager.isModelTestingEnabled ? "已启用" : "已禁用")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                    }
-                    .foregroundColor(.white)
-                    .frame(height: 44)
-                    .padding(.horizontal, 16)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(modelManager.isModelTestingEnabled ? .green : .gray)
+                .buttonBorderShape(.circle)  // 添加这个
                 
+                Spacer()
+            }
+            
+            Spacer()
+            
+            // 中间：模型测试开关（单独，居中）
+            Button(action: {
+                modelManager.isModelTestingEnabled.toggle()
+                print("🧊 模型测试模式切换: \(modelManager.isModelTestingEnabled)")
+            })
+            {
+                HStack(spacing: 8)
+                {
+                    Image(systemName: modelManager.isModelTestingEnabled ? "cube.fill" : "cube")
+                        .font(.title3)
+                    
+                    Text(modelManager.isModelTestingEnabled ? "已启用" : "已禁用")
+                        .font(.callout)
+                        .fontWeight(.medium)
+                }
+                .frame(width: 156, height: 64)  // 改小按钮尺寸
+                .foregroundColor(.white)
+                .padding(.horizontal, 16)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(modelManager.isModelTestingEnabled ? .green : .gray)
+            
+            Spacer()
+            
+            // 右边：管理、刷新、保存（超级紧凑！）
+            HStack(spacing: 8)
+            {
                 // 管理模型按钮
                 Button(action: {
                     print("🪟 打开模型管理窗口")
@@ -502,20 +516,21 @@ struct ModelPlacementTab: View
                 })
                 {
                     Image(systemName: "list.bullet.rectangle")
-                        .font(.title2)
+                        .font(.title3)
                         .foregroundColor(.white)
-                        .frame(width: 44, height: 44)
+                        .frame(width: 64, height: 64)  // 改小按钮尺寸
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.purple)
+                .clipShape(Circle())
                 .disabled(!modelManager.isModelTestingEnabled)
+                .buttonBorderShape(.circle)  // 添加这个
                 
                 // 刷新按钮
                 Button(action: {
                     print("🧊 用户点击刷新模型数据按钮")
                     isRefreshingModels = true
                     NotificationCenter.default.post(name: NSNotification.Name("RefreshModels"), object: nil)
-
                     DispatchQueue.main.asyncAfter(deadline: .now() + 2.0)
                     {
                         isRefreshingModels = false
@@ -525,51 +540,52 @@ struct ModelPlacementTab: View
                     if isRefreshingModels
                     {
                         ProgressView()
-                            .scaleEffect(0.8)
-                            .frame(width: 44, height: 44)
+                            .scaleEffect(0.7)
+                            .frame(width: 64, height: 64)  // 改小按钮尺寸
                     }
                     else
                     {
                         Image(systemName: "arrow.clockwise")
-                            .font(.title2)
+                            .font(.title3)
                             .foregroundColor(.white)
-                            .frame(width: 44, height: 44)
+                            .frame(width: 64, height: 64)  // 改小按钮尺寸
                     }
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.blue)
+                .clipShape(Circle())
                 .disabled(isRefreshingModels || !modelManager.isModelTestingEnabled)
-
+                .buttonBorderShape(.circle)  // 添加这个
+                
                 // 保存按钮
                 Button(action: onSave)
                 {
-                    HStack(spacing: 8)
+                    HStack(spacing: 4)
                     {
                         if isSavingModels
                         {
                             ProgressView()
-                                .scaleEffect(0.8)
+                                .scaleEffect(0.7)
+                                .frame(width: 64, height: 64)
                         }
                         else
                         {
                             Image(systemName: "square.and.arrow.up")
                                 .font(.title3)
+                                .foregroundColor(.white)
+                                .frame(width: 64, height: 64)  // 改小按钮尺寸
                         }
-                        Text("保存")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
                     }
+                    
                     .foregroundColor(.white)
-                    .frame(height: 44)
-                    .padding(.horizontal, 16)
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.green)
                 .disabled(isSavingModels || !modelManager.isModelTestingEnabled)
             }
-            .padding(.horizontal, 24)
         }
-        .padding(.vertical, 16)
+        .padding(.vertical, 12)
+        .padding(.horizontal, 20)
         .glassBackgroundEffect()
     }
 }

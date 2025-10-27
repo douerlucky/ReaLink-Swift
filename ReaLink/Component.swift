@@ -238,8 +238,10 @@ struct QuestionDetailModal: View
                 Button(action: onClose)
                 {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 18, weight: .medium))
+                        .clipShape(Circle())
+                        .font(.title)
                         .foregroundColor(.secondary)
+                        .buttonBorderShape(.circle)  // 添加这个
                 }
                 .buttonStyle(.plain)
                 .hoverEffect(.highlight)
@@ -367,12 +369,15 @@ struct QuestionDetailModal: View
                             .frame(width: 32, height: 32)
 
                         Image(systemName: "sparkles")
-                            .font(.system(size: 16, weight: .semibold))
+                            .font(.title3)
                             .foregroundColor(.white)
+                            .frame(width: 64, height: 64)  // 改小按钮尺寸
                     }
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.borderedProminent)
+                .clipShape(Circle())
                 .disabled(isSendingReply)
+                .buttonBorderShape(.circle)  // 添加这个
 
                 // 输入框
                 TextField("输入你的回答...", text: $replyText, axis: .vertical)
@@ -405,20 +410,24 @@ struct QuestionDetailModal: View
                     {
                         ProgressView()
                             .scaleEffect(0.8)
+                            .frame(width: 64, height: 64)  // 改小按钮尺寸
                     }
                     else
                     {
                         Image(systemName: "paperplane.fill")
-                            .font(.title2)
+                            .font(.title3)
                             .foregroundColor(.white)
+                            .frame(width: 64, height: 64)  // 改小按钮尺寸
                     }
                 }
                 .buttonStyle(.borderedProminent)
+                .clipShape(Circle())
                 .tint(.blue)
                 .disabled(replyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSendingReply)
                 .scaleEffect(isRealityEnvironment && (replyText.isEmpty || isSendingReply) ? 0.9 : 1.0)
                 .animation(isRealityEnvironment ? .easeInOut(duration: 0.2) : .none, value: replyText.isEmpty)
                 .animation(isRealityEnvironment ? .easeInOut(duration: 0.2) : .none, value: isSendingReply)
+                .buttonBorderShape(.circle)  // 添加这个
             }
 
             // 字数统计

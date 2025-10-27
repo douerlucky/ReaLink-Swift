@@ -1,4 +1,3 @@
-
 //
 //  BasicPanoramaView.swift
 //  ReaLink
@@ -94,6 +93,14 @@ struct BasicPanoramaView: View
     
     //添加是否吸附
     @State var isModelSnapEnabled = true
+    
+    @State private var arSession = ARKitSession()
+    @State private var worldTracking = WorldTrackingProvider()
+    
+    // 🌟 新增：模型附着到手上的状态
+    @State private var handAttachedModel: PlacedModel?
+    @State private var isModelAttachedToHand = false
+    @State private var handAttachmentTimer: Timer?
        
     // MARK: - 主视图
 
@@ -156,6 +163,16 @@ struct BasicPanoramaView: View
         .onAppear {
             handGestureManager.startTracking()
             
+            // ✅ 启动 ARKit 世界追踪
+            Task {
+                do {
+                    try await arSession.run([worldTracking])
+                    print("✅【ARKit 世界追踪已启动】")
+                } catch {
+                    print("⚠️【ARKit 启动失败】: \(error)")
+                }
+            }
+            
             if notificationObservers.isEmpty {
                 setupNotificationListeners()
             }
@@ -209,6 +226,34 @@ struct BasicPanoramaView: View
         
         notificationObservers.append(resetObserver)
         print("✅ 重置通知监听器已设置")
+        
+        // 🔥 添加关闭沉浸式空间和所有窗口的监听器
+        let closeSpacesObserver = NotificationCenter.default.addObserver(
+            forName: NSNotification.Name("CloseAllImmersiveSpaces"),
+            object: nil,
+            queue: .main
+        ) { [self] _ in
+            print("🚪 BasicPanoramaView: 收到关闭所有沉浸式空间通知")
+            
+            // 先关闭所有窗口
+            self.dismissWindow(id: "ModelsListWindow")
+            self.dismissWindow(id: "AIAssistantWindow")
+            self.dismissWindow(id: "ControlMenuWindow")
+            self.dismissWindow(id: "RealityWindow")
+            self.dismissWindow(id: "BrushControlWindow")
+            self.dismissWindow(id: "ModelControlWindow")
+            print("🗑️ 所有窗口已请求关闭")
+            
+            // 然后退出沉浸式空间
+            Task {
+                try? await Task.sleep(nanoseconds: 300_000_000) // 0.3秒
+                await self.dismissImmersiveSpace()
+                print("✅ 沉浸式空间已退出")
+            }
+        }
+        
+        notificationObservers.append(closeSpacesObserver)
+        print("✅ 关闭沉浸式空间监听器已设置")
     }
 
     /// 执行完整的场景和状态重置
@@ -220,6 +265,17 @@ struct BasicPanoramaView: View
         handTracking.stopTracking()
         regionSelectionHandTracking?.stopTracking()
         print("  ✓ 手势跟踪已停止")
+        
+        // 🌟 1️⃣.5️⃣ 停止手部附着（如果正在进行）
+        if isModelAttachedToHand {
+            print("  🤲 停止手部附着")
+            handAttachmentTimer?.invalidate()
+            handAttachmentTimer = nil
+            handAttachedModel = nil
+            isModelAttachedToHand = false
+            handGestureManager.isTrackingHandPosition = false
+        }
+        print("  ✓ 手部附着状态已重置")
         
         // 2️⃣ 清除所有3D模型
         for model in placedModels {
@@ -297,11 +353,41 @@ struct BasicPanoramaView: View
         lastUpdateTime = Date()
         print("  ✓ UI更新计数器已重置")
         
-        print("✅ 【BasicPanoramaView 全面重置完成】")
+        // 1️⃣2️⃣ 🔥 重新设置场景（天空球和地面）
+        print("  🌍 开始重新设置场景...")
+        Task { @MainActor in
+            await self.setupChildEntities()
+            print("  ✅ 场景重新设置完成")
+        }
+        
+        // 1️⃣3️⃣ 🔥 重新加载所有问答圈（恢复初始状态）
+        print("  🔄 开始重新加载问答圈...")
+        Task {
+            await self.load3DViewQuestions()
+            print("  ✅ 问答圈重新加载完成")
+        }
+        
+        // 1️⃣4️⃣ 🔥 重新启动手势跟踪
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            self.handGestureManager.startTracking()
+            print("  ✅ 手势跟踪已重新启动")
+        }
+        
+        print("✅ 【BasicPanoramaView 全面重置完成，所有问答圈已恢复显示】")
     }
     
     private func cleanupResources() {
         print("🧹 BasicPanoramaView: 开始清理资源")
+        
+        // 🌟 停止手部附着（如果正在进行）
+        if isModelAttachedToHand {
+            print("🤲 清理：停止手部附着")
+            handAttachmentTimer?.invalidate()
+            handAttachmentTimer = nil
+            handAttachedModel = nil
+            isModelAttachedToHand = false
+            handGestureManager.isTrackingHandPosition = false
+        }
         
         // 停止所有跟踪
         handGestureManager.stopTracking()
@@ -379,6 +465,16 @@ struct BasicPanoramaView: View
     }
 
     public func clearAllModelsFromScene() {
+        // 🌟 先停止手部附着（如果正在进行）
+        if isModelAttachedToHand {
+            print("🤲 检测到正在进行手部附着，先停止")
+            handAttachmentTimer?.invalidate()
+            handAttachmentTimer = nil
+            handAttachedModel = nil
+            isModelAttachedToHand = false
+            handGestureManager.isTrackingHandPosition = false
+        }
+        
         for model in placedModels {
             model.entity.removeFromParent()
             print("🗑️ 从场景移除模型: \(model.entity.name)")
@@ -408,6 +504,264 @@ struct BasicPanoramaView: View
             isMenuWindowOpen = true
         }
     }
+    
+    func getUserFacingPosition(distanceInFront: Float = 2.0) -> SIMD3<Float> {
+            print("📍【获取用户视线位置】")
+            
+            #if targetEnvironment(simulator)
+            // 模拟器环境：使用估计值
+            let estimatedPosition = SIMD3<Float>(0, 1.5, -distanceInFront)
+            print("   🖥️ 模拟器模式，使用估计位置: \(estimatedPosition)")
+            return estimatedPosition
+            #else
+            // 真机环境：使用 ARKit
+            
+            // 尝试获取设备锚点（Device Anchor）
+            if let deviceAnchor = worldTracking.queryDeviceAnchor(atTimestamp: CACurrentMediaTime()) {
+                // ✅ 获取设备的变换矩阵
+                let transform = deviceAnchor.originFromAnchorTransform
+                
+                // 提取位置（平移部分）
+                let position = SIMD3<Float>(
+                    transform.columns.3.x,
+                    transform.columns.3.y,
+                    transform.columns.3.z
+                )
+                
+                // 提取前方向量（-Z 方向，因为 ARKit 使用右手坐标系）
+                let forward = SIMD3<Float>(
+                    -transform.columns.2.x,
+                    -transform.columns.2.y,
+                    -transform.columns.2.z
+                )
+                
+                // 归一化方向向量
+                let normalizedForward = normalize(forward)
+                
+                // 计算目标位置：当前位置 + 前方向量 * 距离
+                let targetPosition = position + normalizedForward * distanceInFront
+                
+                print("   ✅ ARKit 设备位置: \(position)")
+                print("   📐 前方向量: \(normalizedForward)")
+                print("   🎯 目标位置: \(targetPosition)")
+                
+                return targetPosition
+                
+            } else {
+                // 如果无法获取设备锚点，使用估计值作为回退
+                print("   ⚠️ 无法获取 ARKit 设备锚点，使用估计位置")
+                let fallbackPosition = SIMD3<Float>(0, 1.5, -distanceInFront)
+                return fallbackPosition
+            }
+            #endif
+        }
+        
+        // MARK: - 获取用户视线方向（可选的辅助方法）
+        /// 仅返回用户当前的视线方向向量
+        /// - Returns: 归一化的方向向量
+        func getUserFacingDirection() -> SIMD3<Float> {
+            #if targetEnvironment(simulator)
+            return SIMD3<Float>(0, 0, -1) // 模拟器默认朝向 -Z
+            #else
+            if let deviceAnchor = worldTracking.queryDeviceAnchor(atTimestamp: CACurrentMediaTime()) {
+                let transform = deviceAnchor.originFromAnchorTransform
+                let forward = SIMD3<Float>(
+                    -transform.columns.2.x,
+                    -transform.columns.2.y,
+                    -transform.columns.2.z
+                )
+                return normalize(forward)
+            } else {
+                return SIMD3<Float>(0, 0, -1)
+            }
+            #endif
+        }
+        
+        // MARK: - 获取用户当前位置（不包含方向）
+        /// 仅返回用户头部/设备的当前位置
+        /// - Returns: 设备的3D位置
+        func getUserCurrentPosition() -> SIMD3<Float> {
+            #if targetEnvironment(simulator)
+            return SIMD3<Float>(0, 1.7, 0)
+            #else
+            if let deviceAnchor = worldTracking.queryDeviceAnchor(atTimestamp: CACurrentMediaTime()) {
+                let transform = deviceAnchor.originFromAnchorTransform
+                return SIMD3<Float>(
+                    transform.columns.3.x,
+                    transform.columns.3.y,
+                    transform.columns.3.z
+                )
+            } else {
+                return SIMD3<Float>(0, 1.7, 0)
+            }
+            #endif
+        }
+    
+    // MARK: - 🌟 手部附着模型功能
+    
+    /// 开始将模型附着到手上
+    func startAttachingModelToHand(modelType: ModelType, color: Color, size: Float, opacity: Float) {
+        print("🤲【收到附着模型到手上请求】")
+        
+        // 🌟 检查模型测试模式是否启用
+        guard modelManager.isModelTestingEnabled else {
+            print("⚠️ 模型测试模式未启用，无法创建模型")
+            return
+        }
+        
+        // 🌟 如果已经有模型在附着，先停止
+        if isModelAttachedToHand {
+            print("⚠️ 已有模型在附着，先停止当前附着")
+            stopAttachingModelToHand()
+        }
+        
+        print("🤲【开始附着模型到手上】类型: \(modelType.rawValue)")
+        
+        // 获取手部位置，如果没有则使用用户前方位置
+        let initialPosition: SIMD3<Float>
+        if let handPos = handGestureManager.getPrimaryHandPosition() {
+            initialPosition = handPos
+            print("   ✅ 使用手部位置: \(handPos)")
+        } else {
+            initialPosition = getUserFacingPosition(distanceInFront: 0.5)
+            print("   ⚠️ 未检测到手部，使用前方位置: \(initialPosition)")
+        }
+        
+        // 创建模型
+        let currentUserId = userManager.getUserId()
+        let username = userManager.getUsername()
+        let avatarUrl = userManager.getAvatarUrl()
+        
+        let model = createModelWithFullAttributes(
+            position: initialPosition,
+            scale: SIMD3<Float>(repeating: 0.8),  // 略小一点，便于观察
+            rotation: simd_quatf(ix: 0, iy: 0, iz: 0, r: 1),
+            type: modelType,
+            color: color,
+            size: size,
+            opacity: opacity,
+            userId: currentUserId,
+            text: nil,
+            username: username,
+            avatarUrl: avatarUrl
+        )
+        
+        // 设置附着状态
+        handAttachedModel = model
+        isModelAttachedToHand = true
+        handGestureManager.isTrackingHandPosition = true
+        
+        // 添加到场景
+        placedModels.append(model)
+        
+        // 启动更新计时器
+        startHandAttachmentTimer()
+        
+        print("✅【模型已创建并附着到手上】ID: \(model.id)")
+    }
+    
+    /// 启动手部附着更新计时器
+    private func startHandAttachmentTimer() {
+        handAttachmentTimer?.invalidate()
+        
+        handAttachmentTimer = Timer.scheduledTimer(withTimeInterval: 0.016, repeats: true) { _ in
+            guard
+                  let model = self.handAttachedModel,
+                  self.isModelAttachedToHand else {
+                return
+            }
+            
+            // 获取手部位置
+            if let handPos = self.handGestureManager.getPrimaryHandPosition() {
+                // 🔥 关键：直接更新模型位置到手部位置，不进行地面吸附
+                model.entity.position = handPos
+            }
+        }
+    }
+    
+    /// 停止附着，将模型固定在当前位置
+    func stopAttachingModelToHand() {
+        print("🤲【收到停止附着模型请求】")
+        
+        // 🌟 防御性检查：即使没有模型，也要清理状态
+        guard let model = handAttachedModel else {
+            print("⚠️ 没有找到附着的模型，仅清理状态")
+            handAttachmentTimer?.invalidate()
+            handAttachmentTimer = nil
+            isModelAttachedToHand = false
+            handGestureManager.isTrackingHandPosition = false
+            return
+        }
+        
+        print("🤲【停止附着模型到手上】ID: \(model.id)")
+        
+        // 停止计时器
+        handAttachmentTimer?.invalidate()
+        handAttachmentTimer = nil
+        
+        // 🌟 检查模型是否还在场景中
+        guard model.entity.parent != nil else {
+            print("⚠️ 模型已不在场景中，跳过位置更新")
+            handAttachedModel = nil
+            isModelAttachedToHand = false
+            handGestureManager.isTrackingHandPosition = false
+            return
+        }
+        
+        // 获取最终位置
+        let finalPosition = model.entity.position
+        
+        // 🔥 应用地面吸附到最终位置
+        let sceneManager = SceneManager(vrManager: vrManager)
+        let snappedPosition = sceneManager.calculateGroundSnapPosition(
+            from: finalPosition,
+            enableSnap: isGroundSnapEnabled
+        )
+        
+        model.entity.position = snappedPosition
+        
+        // 更新模型记录
+        if let index = placedModels.firstIndex(where: { $0.id == model.id }) {
+            let updatedModel = PlacedModel(
+                id: model.id,
+                entity: model.entity,
+                originalScale: model.originalScale,
+                originalPosition: snappedPosition,  // 更新为吸附后的位置
+                type: model.type,
+                color: model.color,
+                size: model.size,
+                opacity: model.opacity,
+                userId: model.userId,
+                text: model.text,
+                username: model.username,
+                avatarUrl: model.avatarUrl
+            )
+            placedModels[index] = updatedModel
+            
+            // 记录操作
+            let snapshot = ModelSnapshot(
+                modelId: model.id,
+                modelType: model.type,
+                position: snappedPosition,
+                scale: model.entity.scale,
+                color: model.color,
+                userId: model.userId
+            )
+            recordOperation(.add, snapshot: snapshot)
+            
+            print("✅【模型已固定并更新记录】最终位置: \(snappedPosition)")
+        } else {
+            print("⚠️ 未在 placedModels 中找到模型，仅固定位置")
+        }
+        
+        // 重置状态
+        handAttachedModel = nil
+        isModelAttachedToHand = false
+        handGestureManager.isTrackingHandPosition = false
+        
+        print("✅【手部附着状态已重置】")
+    }
+    
 }
 
 #Preview(immersionStyle: .full)

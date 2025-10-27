@@ -14,6 +14,7 @@ protocol HandGestureManagerDelegate: AnyObject {
     func didDetectOpenHandGesture(chirality: OpenHandGestureDetector.OpenHandDetectionResult.HandChirality)
     func didUpdateLeftHandOpen(isOpen: Bool, confidence: Float)
     func didUpdateRightHandOpen(isOpen: Bool, confidence: Float)
+    func didUpdateHandPosition(chirality: OpenHandGestureDetector.OpenHandDetectionResult.HandChirality, position: SIMD3<Float>)  // 🌟 新增
 }
 
 // MARK: - 手势管理器
@@ -23,6 +24,11 @@ class HandGestureManager: ObservableObject {
     @Published var rightHandOpenDetected = false
     @Published var leftHandConfidence: Float = 0.0
     @Published var rightHandConfidence: Float = 0.0
+    
+    // 🌟 新增：手部位置追踪
+    @Published var rightHandPosition: SIMD3<Float> = .zero
+    @Published var leftHandPosition: SIMD3<Float> = .zero
+    @Published var isTrackingHandPosition = false
     
     private var handTracker: HandTracker?
     private let openHandDetector = OpenHandGestureDetector()
@@ -58,6 +64,16 @@ class HandGestureManager: ObservableObject {
         return handTracker?.getARKitSession()
     }
     #endif
+    
+    // 🌟 新增：获取主要手部位置（优先右手，然后左手）
+    func getPrimaryHandPosition() -> SIMD3<Float>? {
+        if rightHandPosition != .zero {
+            return rightHandPosition
+        } else if leftHandPosition != .zero {
+            return leftHandPosition
+        }
+        return nil
+    }
 }
 
 // MARK: - 手势管理器代理实现
@@ -85,6 +101,18 @@ extension HandGestureManager: HandGestureManagerDelegate {
         Task { @MainActor in
             self.rightHandOpenDetected = isOpen
             self.rightHandConfidence = confidence
+        }
+    }
+    
+    // 🌟 新增：处理手部位置更新
+    func didUpdateHandPosition(chirality: OpenHandGestureDetector.OpenHandDetectionResult.HandChirality, position: SIMD3<Float>) {
+        Task { @MainActor in
+            switch chirality {
+            case .left:
+                self.leftHandPosition = position
+            case .right:
+                self.rightHandPosition = position
+            }
         }
     }
 }
@@ -154,14 +182,31 @@ class HandTracker: NSObject, ObservableObject {
         case .added, .updated:
             let handAnchor = update.anchor
             
+            // 🌟 提取手部位置（使用手腕位置）
+            let handPosition = SIMD3<Float>(
+                handAnchor.originFromAnchorTransform.columns.3.x,
+                handAnchor.originFromAnchorTransform.columns.3.y,
+                handAnchor.originFromAnchorTransform.columns.3.z
+            )
+            
             switch handAnchor.chirality {
             case .left:
                 let result = openHandDetector.detectLeftHandOpen(handAnchor)
                 handleOpenHandDetection(result: result)
                 
+                // 🌟 通知手部位置更新
+                DispatchQueue.main.async {
+                    self.delegate?.didUpdateHandPosition(chirality: .left, position: handPosition)
+                }
+                
             case .right:
                 let result = openHandDetector.detectRightHandOpen(handAnchor)
                 handleOpenHandDetection(result: result)
+                
+                // 🌟 通知手部位置更新
+                DispatchQueue.main.async {
+                    self.delegate?.didUpdateHandPosition(chirality: .right, position: handPosition)
+                }
             }
             
         case .removed:
