@@ -16,6 +16,22 @@ class SceneManager {
         self.vrManager = vrManager
     }
     
+    // MARK: - 🔥 天空球旋转配置（全局统一）
+    struct SkyboxConfig {
+        static let horizontalOffsetPixels: Float = 2200
+        static let panoramaWidth: Float = 8704
+        
+        // 计算统一的水平旋转角度
+        static var yawAngle: Float {
+            return (horizontalOffsetPixels / panoramaWidth) * 2.0 * .pi
+        }
+        
+        // 获取统一的旋转四元数
+        static var rotation: simd_quatf {
+            return simd_quatf(angle: yawAngle, axis: SIMD3<Float>(0, 1, 0))
+        }
+    }
+    
     // MARK: - 虚拟地面配置
     struct GroundConfig {
         static let groundHeight: Float = 0.2
@@ -163,26 +179,26 @@ class SceneManager {
         
         let material = await loadPanoramaMaterial()
         
-        let sphere = ModelEntity(
-            mesh: .generateSphere(radius: 50),
-            materials: [material]
-        )
+        // 🔥 确保在主线程创建 ModelEntity
+        let sphere = await MainActor.run {
+            let entity = ModelEntity(
+                mesh: .generateSphere(radius: 50),
+                materials: [material]
+            )
+            
+            entity.scale = SIMD3<Float>(-1, 1, 1)
+            entity.position = SIMD3<Float>(0, 0, 0)
+            entity.name = "skybox_real"
+            
+            print("✅【ModelEntity创建完成】半径: 50m")
+            return entity
+        }
         
-        sphere.scale = SIMD3<Float>(-1, 1, 1)
-        sphere.position = SIMD3<Float>(0, 0, 0)
-        sphere.name = "skybox_real"
+        // 🔥 应用统一的水平旋转配置
+        sphere.transform.rotation = SkyboxConfig.rotation
         
-        // 🔥 水平旋转（绕Y轴）- 只要水平旋转，不要倾斜！
-        let horizontalOffsetPixels: Float = 2200
-        let panoramaWidth: Float = 8704
-        let yawAngle = (horizontalOffsetPixels / panoramaWidth) * 2.0 * .pi
-        
-        // ✅ 只应用水平旋转，删除了垂直旋转
-        let yawRotation = simd_quatf(angle: yawAngle, axis: SIMD3<Float>(0, 1, 0))
-        sphere.transform.rotation = yawRotation
-        
-        print("🎯【天空球旋转】水平:\(String(format: "%.1f", yawAngle * 180.0 / .pi))° (无垂直倾斜 - 正的！)")
-        
+        print("🎯【天空球旋转】水平:\(String(format: "%.1f", SkyboxConfig.yawAngle * 180.0 / .pi))° (使用全局统一配置)")
+        print("🎯【天空球材质数量】: \(sphere.model?.materials.count ?? 0)")
         print("✅【天空球创建完成】")
         
         return sphere
@@ -261,14 +277,21 @@ class SceneManager {
                 }
             }
             
-            // 创建材质
-            var material = UnlitMaterial()
-            material.color = .init(texture: .init(texture))
-            
-            resetLoadingStateSync()
-            
-            print("🎨【全景材质创建完成】")
-            return material
+            // 🔥 关键修复：确保材质创建在主线程执行
+            return await MainActor.run {
+                var material = UnlitMaterial()
+                material.color = .init(texture: .init(texture))
+                
+                // ✅ 验证材质
+                print("🔍【验证材质】")
+                print("   - 材质类型: UnlitMaterial")
+                print("   - 纹理尺寸: \(texture.width) x \(texture.height)")
+                
+                resetLoadingStateSync()
+                
+                print("🎨【全景材质创建完成】✅ 在主线程")
+                return material
+            }
             
         } catch {
             print("❌【加载全景图失败】: \(error.localizedDescription)")
@@ -283,14 +306,22 @@ class SceneManager {
         
         do {
             let fallbackTexture = try await TextureResource(named: "docklands_02")
-            var material = UnlitMaterial()
-            material.color = .init(texture: .init(fallbackTexture))
-            print("✅【回退纹理加载成功】")
-            return material
+            
+            // 在主线程创建材质
+            return await MainActor.run {
+                var material = UnlitMaterial()
+                material.color = .init(texture: .init(fallbackTexture))
+                print("✅【回退纹理加载成功】✅ 在主线程")
+                return material
+            }
         } catch {
             print("❌【回退纹理也加载失败】: \(error.localizedDescription)")
             print("⚠️【使用纯色材质】")
-            return createFallbackMaterial(color: .blue)
+            
+            // 在主线程创建纯色材质
+            return await MainActor.run {
+                return createFallbackMaterial(color: .blue)
+            }
         }
     }
 
@@ -301,48 +332,46 @@ class SceneManager {
         print("🎨【创建纯色回退材质】颜色: \(color)")
         return material
     }
-    // MARK: - 从图片数据创建纹理（关键修复方法）
+    // MARK: - 从图片数据创建纹理（修复线程安全问题）
     #if canImport(UIKit)
     private func createTextureFromImageData(_ data: Data) async throws -> TextureResource {
-        // 🔥 关键修复：在单一的异步上下文中处理整个流程
-        return try await Task.detached(priority: .userInitiated) {
-            // 步骤1：创建 UIImage
-            guard let originalImage = UIImage(data: data) else {
-                throw NSError(
-                    domain: "TextureError",
-                    code: 1,
-                    userInfo: [NSLocalizedDescriptionKey: "无法从数据创建图像"]
-                )
-            }
-            
-            print("📐【原始图片尺寸】: \(originalImage.size.width) x \(originalImage.size.height)")
-            
-            // 步骤2：缩放图片
-            let maxDimension: CGFloat = 6553
-            let resizedImage = self.resizeImageIfNeeded(originalImage, maxDimension: maxDimension)
-            
-            print("📐【缩放后图片尺寸】: \(resizedImage.size.width) x \(resizedImage.size.height)")
-            
-            // 步骤3：获取 CGImage
-            guard let cgImage = resizedImage.cgImage else {
-                throw NSError(
-                    domain: "TextureError",
-                    code: 2,
-                    userInfo: [NSLocalizedDescriptionKey: "无法获取CGImage"]
-                )
-            }
-            
-            // 步骤4：创建纹理资源
-            print("🎨【开始创建纹理资源】")
-            let textureResource = try await TextureResource(
-                image: cgImage,
-                options: TextureResource.CreateOptions(semantic: .color)
+        print("🎨【开始处理图片数据】大小: \(data.count) bytes")
+        
+        // 步骤1：创建 UIImage（可以在任何线程）
+        guard let originalImage = UIImage(data: data) else {
+            throw NSError(
+                domain: "TextureError",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "无法从数据创建图像"]
             )
-            
-            print("✅【纹理资源创建成功】")
-            return textureResource
-            
-        }.value
+        }
+        
+        print("📐【原始图片尺寸】: \(originalImage.size.width) x \(originalImage.size.height)")
+        
+        // 步骤2：缩放图片（同步操作）
+        let maxDimension: CGFloat = 6553
+        let resizedImage = self.resizeImageIfNeeded(originalImage, maxDimension: maxDimension)
+        
+        print("📐【缩放后图片尺寸】: \(resizedImage.size.width) x \(resizedImage.size.height)")
+        
+        // 步骤3：获取 CGImage
+        guard let cgImage = resizedImage.cgImage else {
+            throw NSError(
+                domain: "TextureError",
+                code: 2,
+                userInfo: [NSLocalizedDescriptionKey: "无法获取CGImage"]
+            )
+        }
+        
+        // 步骤4：创建纹理资源（RealityKit 的异步方法，自动处理线程）
+        print("🎨【开始创建纹理资源】")
+        let textureResource = try await TextureResource(
+            image: cgImage,
+            options: TextureResource.CreateOptions(semantic: .color)
+        )
+        
+        print("✅【纹理资源创建成功】")
+        return textureResource
     }
     #endif
     

@@ -116,11 +116,14 @@ struct SceneRecognitionPanel: View {
                     Button(action: {
                         handlePanelClose()
                     }) {
-                        Image(systemName: "xmark.circle.fill")
+                        Image(systemName: "xmark")
                             .font(.title3)
                             .foregroundColor(.secondary)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.borderedProminent)
+                    .clipShape(Circle())
+                    .buttonBorderShape(.circle)  // 添加圆形边框
+                    .hoverEffect(.highlight)
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 16)
@@ -297,7 +300,7 @@ struct ControlButtonsFixed: View {
                 // 🔥 只显示"取消选择区域"按钮
                 ActionButton(
                     title: "取消选择区域",
-                    icon: "xmark.circle.fill",
+                    icon: "xmark",
                     color: .red,
                     action: cancelSelection
                 )
@@ -315,7 +318,7 @@ struct ControlButtonsFixed: View {
                 // 重新识别按钮
                 ActionButton(
                     title: "重新识别",
-                    icon: "arrow.counterclockwise.circle.fill",
+                    icon: "arrow.counterclockwise.circle",
                     color: .blue,
                     action: resetToIdle
                 )

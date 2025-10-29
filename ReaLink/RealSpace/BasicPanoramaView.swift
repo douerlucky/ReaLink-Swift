@@ -196,15 +196,25 @@ struct BasicPanoramaView: View
         }
         .onChange(of: handGestureManager.isMenuTriggerGestureDetected) { oldValue, newValue in
             if newValue && !oldValue && canDetectGesture {
+                // ✅ 修复：使用 shouldIgnoreOKGesture() 替代 areAllCriticalWindowsClosed()
+                guard !shouldIgnoreOKGesture() else {
+                    // 重置手势检测器状态，避免误触发
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        self.handGestureManager.resetOpenHandDetection()
+                    }
+                    
+                    return
+                }
+                
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                    print("检测到新手势，触发控制菜单")
+                    print("✅【检测到OK手势】所有窗口已关闭，触发控制菜单")
 
                     canDetectGesture = false
                     toggleControlMenu()
 
                     DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
                         canDetectGesture = true
-                        print("手势检测已重新启用")
+                        print("✅【手势检测已重新启用】")
                     }
                 }
             }
@@ -216,41 +226,58 @@ struct BasicPanoramaView: View
     
     private func setupResetNotificationListener() {
         let resetObserver = NotificationCenter.default.addObserver(
-            forName: NSNotification.Name("ResetAllVRStates"),
-            object: nil,
-            queue: .main
-        ) { [self] _ in
-            print("🧹 BasicPanoramaView: 收到重置通知")
-            self.performFullReset()
-        }
-        
-        notificationObservers.append(resetObserver)
-        print("✅ 重置通知监听器已设置")
-        
-        // 🔥 添加关闭沉浸式空间和所有窗口的监听器
-        let closeSpacesObserver = NotificationCenter.default.addObserver(
-            forName: NSNotification.Name("CloseAllImmersiveSpaces"),
-            object: nil,
-            queue: .main
-        ) { [self] _ in
-            print("🚪 BasicPanoramaView: 收到关闭所有沉浸式空间通知")
-            
-            // 先关闭所有窗口
-            self.dismissWindow(id: "ModelsListWindow")
-            self.dismissWindow(id: "AIAssistantWindow")
-            self.dismissWindow(id: "ControlMenuWindow")
-            self.dismissWindow(id: "RealityWindow")
-            self.dismissWindow(id: "BrushControlWindow")
-            self.dismissWindow(id: "ModelControlWindow")
-            print("🗑️ 所有窗口已请求关闭")
-            
-            // 然后退出沉浸式空间
-            Task {
-                try? await Task.sleep(nanoseconds: 300_000_000) // 0.3秒
-                await self.dismissImmersiveSpace()
-                print("✅ 沉浸式空间已退出")
-            }
-        }
+                    forName: NSNotification.Name("ResetAllVRStates"),
+                    object: nil,
+                    queue: .main
+                ) { [self] _ in
+                    print("🧹 BasicPanoramaView: 收到重置通知")
+                    self.performFullReset()
+                }
+                
+                notificationObservers.append(resetObserver)
+                
+                // ✅ 监听 RealityWindow 关闭事件
+                let realityWindowClosedObserver = NotificationCenter.default.addObserver(
+                    forName: NSNotification.Name("RealityWindowClosed"),
+                    object: nil,
+                    queue: .main
+                ) { [self] _ in
+                    print("📢 BasicPanoramaView: RealityWindow 已关闭")
+                    
+                    // 恢复其他问题球的显示
+                    Task { @MainActor in
+                        self.hideOtherQuestionSpheres = false
+                        self.selectedQuestionId = nil
+                        await self.animateQuestionSpheresVisibility()
+                    }
+                }
+                
+                notificationObservers.append(realityWindowClosedObserver)
+                
+                // ✅ 添加关闭沉浸式空间和所有窗口的监听器
+                let closeSpacesObserver = NotificationCenter.default.addObserver(
+                    forName: NSNotification.Name("CloseAllImmersiveSpaces"),
+                    object: nil,
+                    queue: .main
+                ) { [self] _ in
+                    print("🚪 BasicPanoramaView: 收到关闭所有沉浸式空间通知")
+                    
+                    // 先关闭所有窗口
+                    self.dismissWindow(id: "ModelsListWindow")
+                    self.dismissWindow(id: "AIAssistantWindow")
+                    self.dismissWindow(id: "ControlMenuWindow")
+                    self.dismissWindow(id: "RealityWindow")
+                    self.dismissWindow(id: "BrushControlWindow")
+                    self.dismissWindow(id: "ModelControlWindow")
+                    print("🗑️ 所有窗口已请求关闭")
+                    
+                    // 然后退出沉浸式空间
+                    Task {
+                        try? await Task.sleep(nanoseconds: 300_000_000) // 0.3秒
+                        await self.dismissImmersiveSpace()
+                        print("✅ 沉浸式空间已关闭")
+                    }
+                }
         
         notificationObservers.append(closeSpacesObserver)
         print("✅ 关闭沉浸式空间监听器已设置")
@@ -495,15 +522,17 @@ struct BasicPanoramaView: View
 
     // MARK: - 控制菜单切换
 
-    private func toggleControlMenu() {
-        if isMenuWindowOpen {
-            dismissWindow(id: "ControlMenuWindow")
-            isMenuWindowOpen = false
-        } else {
-            openWindow(id: "ControlMenuWindow")
-            isMenuWindowOpen = true
-        }
-    }
+    func toggleControlMenu() {
+           if isMenuWindowOpen {
+               print("🔴 关闭控制菜单")
+               dismissWindow(id: "ControlMenuWindow")
+               isMenuWindowOpen = false
+           } else {
+               print("🟢 打开控制菜单")
+               openWindow(id: "ControlMenuWindow")
+               isMenuWindowOpen = true
+           }
+       }
     
     func getUserFacingPosition(distanceInFront: Float = 2.0) -> SIMD3<Float> {
             print("📍【获取用户视线位置】")
@@ -764,13 +793,61 @@ struct BasicPanoramaView: View
     
 }
 
+extension BasicPanoramaView {
+    
+    func shouldIgnoreOKGesture() -> Bool {
+           // 需要阻止OK手势的窗口列表
+           let blockingWindows: [(String, Bool)] = [
+               ("RealityWindow", windowStateManager.isRealityWindowOpen),
+               ("ModelControlWindow", windowStateManager.isModelControlWindowOpen),
+               ("BrushControlWindow", windowStateManager.isBrushControlWindowOpen),
+               // ✅ 注意：ControlMenu不在这里，因为OK手势就是用来控制它的
+           ]
+           
+           for (windowName, isOpen) in blockingWindows {
+               if isOpen {
+                   print("⚠️【OK手势被忽略】\(windowName)打开中")
+                   return true
+               }
+           }
+           
+           return false
+       }
+    /// ✅ 检查是否所有关键窗口都已关闭
+    /// - Returns: 如果所有窗口都关闭返回 true，否则返回 false
+    func areAllCriticalWindowsClosed() -> Bool {
+        // 检查所有关键窗口的状态
+        let isRealityWindowClosed = !windowStateManager.isRealityWindowOpen
+        let isControlMenuClosed = !isMenuWindowOpen
+        
+        // 可以添加更多窗口状态检查
+        // 例如：检查其他可能打开的窗口
+        
+        let allWindowsClosed = isRealityWindowClosed && isControlMenuClosed
+        
+        if !allWindowsClosed {
+            print("⚠️【窗口状态检查】还有窗口未关闭:")
+            print("   - RealityWindow: \(isRealityWindowClosed ? "已关闭" : "未关闭")")
+            print("   - ControlMenu: \(isControlMenuClosed ? "已关闭" : "未关闭")")
+        }
+        
+        return allWindowsClosed
+    }
+    
+    /// ✅ 修改后的手势检测逻辑
+    /// 替换原来的 .onChange(of: handGestureManager.isMenuTriggerGestureDetected)
+    func setupEnhancedGestureDetection() {
+        // 这个方法应该在 body 的 .onChange 中调用
+    }
+}
+
 #Preview(immersionStyle: .full)
 {
     BasicPanoramaView()
         .environmentObject({
             let manager = VRSessionManager.shared
             manager.updateLocationInfo(
-                title: "华中农业大学梧桐广场",
+                title: "华中农业大学梧桐广场", locationId: 2,
                 panoramaImage: "docklands_02"
             )
             return manager

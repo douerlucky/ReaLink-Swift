@@ -1,15 +1,16 @@
 //
 //  VisionAINetworkServices_FIXED.swift
-//  🔥 修复网络请求超时和错误处理
+//  🔥 修复版：添加 questionId 支持，让AI知道当前场景和问题上下文
 //
 
 import Foundation
 
 // MARK: - 场景识别相关数据结构
 
-/// 场景识别请求
+/// 场景识别请求（🔥 新增：questionId 字段）
 struct SceneRecognitionRequest: Codable {
     let locationId: Int64
+    let questionId: Int64?  // 🔥 新增：问题ID（可选）
     let topLeftX: Int
     let topLeftY: Int
     let bottomRightX: Int
@@ -20,6 +21,7 @@ struct SceneRecognitionRequest: Codable {
     
     enum CodingKeys: String, CodingKey {
         case locationId = "location_id"
+        case questionId = "question_id"  // 🔥 新增
         case topLeftX = "top_left_x"
         case topLeftY = "top_left_y"
         case bottomRightX = "bottom_right_x"
@@ -51,15 +53,17 @@ struct SceneRecognitionResponse: Codable {
 
 extension NetworkManager {
     
-    /// 🎯 场景识别 - 分析用户圈选的全景图区域（修复版）
+    /// 🎯 场景识别 - 分析用户圈选的全景图区域（修复版 - 支持问题上下文）
     /// - Parameters:
     ///   - locationId: 位置ID（对应全景图）
+    ///   - questionId: 问题ID（可选，如果提供则AI会知道用户在问什么）
     ///   - region: 全景图坐标区域
     ///   - userPrompt: 用户自定义提示词（可选）
     ///   - timeout: 超时时间（默认60秒）
     /// - Returns: AI识别结果
     func recognizeSceneRegion(
         locationId: Int64,
+        questionId: Int64? = nil,  // 🔥 新增参数
         region: PanoramaRegion,
         userPrompt: String? = nil,
         timeout: TimeInterval = 60.0
@@ -72,16 +76,17 @@ extension NetworkManager {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.timeoutInterval = timeout  // 🔥 可配置的超时时间
+        request.timeoutInterval = timeout
         
         let requestBody = SceneRecognitionRequest(
             locationId: locationId,
+            questionId: questionId,  // 🔥 传递问题ID
             topLeftX: region.topLeft.x,
             topLeftY: region.topLeft.y,
             bottomRightX: region.bottomRight.x,
             bottomRightY: region.bottomRight.y,
-            panoramaWidth: 8704,  // 🔥 修复：全景图总宽度，不是区域宽度
-            panoramaHeight: 4352,  // 🔥 修复：全景图总高度，不是区域高度
+            panoramaWidth: 8704,
+            panoramaHeight: 4352,
             userPrompt: userPrompt
         )
         
@@ -89,6 +94,9 @@ extension NetworkManager {
         
         print("📤【发送场景识别请求】")
         print("   - 位置ID: \(locationId)")
+        if let qid = questionId {
+            print("   - 问题ID: \(qid)")  // 🔥 打印问题ID
+        }
         print("   - 区域: (\(region.topLeft.x),\(region.topLeft.y)) → (\(region.bottomRight.x),\(region.bottomRight.y))")
         print("   - 尺寸: \(region.width)x\(region.height)")
         print("   - 超时时间: \(timeout)秒")
@@ -96,7 +104,6 @@ extension NetworkManager {
             print("   - 用户提示: \(prompt)")
         }
         
-        // 🔥 添加超时监控
         let startTime = Date()
         
         do {
@@ -128,7 +135,6 @@ extension NetworkManager {
                 print("✅【场景识别成功】")
                 print("   - 识别结果长度: \(recognitionResponse.result.count) 字符")
                 
-                // 🔥 新增：打印裁剪图片URL
                 if let imageUrl = recognitionResponse.croppedImageUrl {
                     print("   - 🖼️ 裁剪图片URL: \(imageUrl)")
                     print("   - 📥 完整下载链接: \(self.baseURL)\(imageUrl)")
@@ -158,11 +164,13 @@ extension NetworkManager {
     /// 🎯 快速场景识别（使用默认提示词）
     func quickRecognizeScene(
         locationId: Int64,
+        questionId: Int64? = nil,  // 🔥 新增参数
         region: PanoramaRegion,
         timeout: TimeInterval = 60.0
     ) async throws -> String {
         let response = try await recognizeSceneRegion(
             locationId: locationId,
+            questionId: questionId,  // 🔥 传递问题ID
             region: region,
             userPrompt: "这是什么地方？请详细描述你看到的内容。",
             timeout: timeout
@@ -180,13 +188,12 @@ extension NetworkManager {
 
 extension AIAssistantWindow {
     
-    /// 处理场景识别完成（修复版）
+    /// 处理场景识别完成（修复版 - 传递问题ID）
     func handleSceneRecognitionCompleted(region: SelectionRegion) {
         print("🎯【开始处理场景识别】")
         
         Task {
             do {
-                // 🔥 设置加载状态
                 await MainActor.run {
                     core.sceneRecognitionState = .recognizing
                     core.errorMessage = nil
@@ -201,10 +208,9 @@ extension AIAssistantWindow {
                 // 2. 转换为全景图坐标
                 let panoramaRegion = converter.convertSelectionToPanoramaRegion(region)
                 
-                // 🔥 新增：在这里发送可视化通知（统一显示拟合曲面）
+                // 🔥 发送可视化通知
                 print("🎨【发送可视化通知 - 点击发送按钮后】")
                 
-                // 计算球面坐标（从最终像素坐标反向计算）
                 let finalMinU = Float(panoramaRegion.topLeft.x) / 8704.0
                 let finalMaxU = Float(panoramaRegion.bottomRight.x) / 8704.0
                 let finalMinV = Float(panoramaRegion.topLeft.y) / 4352.0
@@ -219,13 +225,12 @@ extension AIAssistantWindow {
                 print("      方位角: \(String(format: "%.1f", finalAzimuthStart * 180.0 / Float.pi))° → \(String(format: "%.1f", finalAzimuthEnd * 180.0 / Float.pi))°")
                 print("      仰角: \(String(format: "%.1f", finalElevationTop * 180.0 / Float.pi))° → \(String(format: "%.1f", finalElevationBottom * 180.0 / Float.pi))°")
                 
-                // 发送可视化通知
                 NotificationCenter.default.post(
                     name: NSNotification.Name("ShowFittedSphericalRegion"),
                     object: nil,
                     userInfo: [
-                        "fittedPoints": region.trackedPoints,  // 使用原始点
-                        "radius": 10.0,  // 拟合半径
+                        "fittedPoints": region.trackedPoints,
+                        "radius": 10.0,
                         "azimuthRange": [finalAzimuthStart, finalAzimuthEnd],
                         "elevationRange": [finalElevationTop, finalElevationBottom],
                         "averageY": region.trackedPoints.map { $0.y }.reduce(0, +) / Float(region.trackedPoints.count),
@@ -234,7 +239,7 @@ extension AIAssistantWindow {
                 )
                 print("   ✅ 已发送可视化通知（基于最终像素坐标）")
                 
-                // 3. 获取当前位置ID
+                // 3. 🔥 获取当前位置ID和问题ID
                 guard let locationId = await getLocationIdFromContext() else {
                     await MainActor.run {
                         core.errorMessage = "无法获取位置信息"
@@ -243,13 +248,23 @@ extension AIAssistantWindow {
                     return
                 }
                 
-                // 4. 发送AI识别请求（带超时）
+                // 🔥 新增：获取当前问题ID
+                let questionId = await getQuestionIdFromContext()
+                
+                if let qid = questionId {
+                    print("🔍【识别上下文】位置ID: \(locationId), 问题ID: \(qid)")
+                } else {
+                    print("🔍【识别上下文】位置ID: \(locationId), 问题ID: 无")
+                }
+                
+                // 4. 🔥 发送AI识别请求（带问题ID）
                 print("🤖【发送AI识别请求】")
                 let response = try await NetworkManager.shared.recognizeSceneRegion(
                     locationId: locationId,
+                    questionId: questionId,  // 🔥 传递问题ID
                     region: panoramaRegion,
                     userPrompt: "请详细描述这个场景中的内容，包括建筑、设施、环境等。",
-                    timeout: 60.0  // 60秒超时
+                    timeout: 60.0
                 )
                 
                 // 5. 显示识别结果
@@ -286,13 +301,12 @@ extension AIAssistantWindow {
         }
     }
     
-    // 发送场景识别请求（带用户提示词）
+    // 发送场景识别请求（带用户提示词和问题ID）
     public func sendSceneRecognitionRequest(region: SelectionRegion, userPrompt: String) {
         print("🤖【开始场景识别请求】")
         
         Task {
             do {
-                // 🔥 设置加载状态
                 await MainActor.run {
                     core.sceneRecognitionState = .recognizing
                     core.errorMessage = nil
@@ -305,7 +319,7 @@ extension AIAssistantWindow {
                 )
                 let panoramaRegion = converter.convertSelectionToPanoramaRegion(region)
                 
-                // 🔥 新增：发送可视化通知
+                // 🔥 发送可视化通知
                 print("🎨【发送可视化通知 - 自定义提示词发送】")
                 
                 let finalMinU = Float(panoramaRegion.topLeft.x) / 8704.0
@@ -332,7 +346,7 @@ extension AIAssistantWindow {
                 )
                 print("   ✅ 已发送可视化通知")
                 
-                // 2. 获取位置ID
+                // 2. 🔥 获取位置ID和问题ID
                 guard let locationId = await getLocationIdFromContext() else {
                     await MainActor.run {
                         core.errorMessage = "无法获取位置信息"
@@ -341,9 +355,12 @@ extension AIAssistantWindow {
                     return
                 }
                 
-                // 3. 发送请求
+                let questionId = await getQuestionIdFromContext()  // 🔥 获取问题ID
+                
+                // 3. 🔥 发送请求（带问题ID）
                 let response = try await NetworkManager.shared.recognizeSceneRegion(
                     locationId: locationId,
+                    questionId: questionId,  // 🔥 传递问题ID
                     region: panoramaRegion,
                     userPrompt: userPrompt,
                     timeout: 60.0
@@ -374,10 +391,30 @@ extension AIAssistantWindow {
         }
     }
 
-    // 补充获取位置ID的方法
+    // 🔥 获取位置ID的方法（需要你根据实际情况实现）
     private func getLocationIdFromContext() async -> Int64? {
-        // 🔥 实现实际的位置ID获取逻辑（例如从VRManager）
+        // 🔥 TODO: 从你的应用上下文中获取当前位置ID
+        // 例如：从 VRManager、SceneManager 或其他管理器中获取
+        
+        // 示例实现（需要替换为实际逻辑）：
+        // if let currentLocation = SceneManager.shared.currentLocation {
+        //     return Int64(currentLocation.id)
+        // }
+        
         // 临时返回测试值
         return 1
+    }
+    
+    // 🔥 新增：获取问题ID的方法（需要你根据实际情况实现）
+    private func getQuestionIdFromContext() async -> Int64? {
+        // 🔥 TODO: 从你的应用上下文中获取当前问题ID
+        // 例如：从 TargetQuestionManager 中获取
+        
+        // 示例实现（需要替换为实际逻辑）：
+        // if let currentQuestion = TargetQuestionManager.shared.currentQuestion {
+        //     return Int64(currentQuestion.id)
+        // }
+        
+        return nil  // 如果没有关联问题，返回nil
     }
 }

@@ -110,10 +110,13 @@ struct EditProfileModal: View {
                 Image(systemName: "xmark")
                     .font(.system(size: 18, weight: .medium))
                     .foregroundColor(.secondary)
-                    .frame(width: 36, height: 36)
+                    .frame(width: 48, height: 48)
                     .background(.regularMaterial, in: Circle())
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.borderedProminent)
+            .clipShape(Circle())
+            .buttonBorderShape(.circle)  // 添加圆形边框
+            .hoverEffect(.highlight)
             
             Spacer()
             
@@ -274,7 +277,7 @@ struct EditProfileModal: View {
                                 ProgressView()
                                     .scaleEffect(0.8)
                             } else if !editedUsername.isEmpty && editedUsername != originalUsername {
-                                Image(systemName: isUsernameValid ? "checkmark.circle.fill" : "xmark.circle.fill")
+                                Image(systemName: isUsernameValid ? "checkmark.circle.fill" : "xmark")
                                     .foregroundColor(isUsernameValid ? .green : .red)
                             }
                         }

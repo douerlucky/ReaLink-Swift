@@ -362,12 +362,16 @@ struct QuestionDetailModalWithTabs: View
 
                 Button(action: onClose)
                 {
-                    Image(systemName: isRealityEnvironment ? "xmark" : "xmark.circle.fill")
+                    Image(systemName: "xmark")
                         .font(isRealityEnvironment ? .body : .title2)
                         .fontWeight(isRealityEnvironment ? .medium : .regular)
                         .symbolRenderingMode(isRealityEnvironment ? .monochrome : .hierarchical)
                         .foregroundColor(.white)
+                        .frame(width: 64, height: 64)  // 改大按钮尺寸
                 }
+                .buttonStyle(.borderedProminent)
+                .clipShape(Circle())
+                .buttonBorderShape(.circle)  // 添加圆形边框
                 .hoverEffect(.highlight)
             }
 
@@ -471,14 +475,19 @@ struct QuestionDetailModalWithTabs: View
                                     endPoint: .bottomTrailing
                                 )
                             )
-                            .frame(width: 32, height: 32)
+                            .frame(width: 64, height: 64)
 
                         Image(systemName: "sparkles")
                             .font(.system(size: 16, weight: .semibold))
                             .foregroundColor(.white)
+                            .frame(width: 64,height: 64)
                     }
+                    
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.borderedProminent)
+                .clipShape(Circle())
+                .disabled(isSendingReply)
+                .buttonBorderShape(.circle)  // 添加这个
                 .disabled(isSendingReply)
 
                 HStack
@@ -518,9 +527,12 @@ struct QuestionDetailModalWithTabs: View
                         Image(systemName: "paperplane.fill")
                             .font(.title2)
                             .foregroundColor(.white)
+                            .frame(width: 64,height: 64)
                     }
                 }
                 .buttonStyle(.borderedProminent)
+                .clipShape(Circle())
+                .buttonBorderShape(.circle)  // 添加这个
                 .tint(.blue)
                 .disabled(replyText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isSendingReply)
                 .scaleEffect((replyText.isEmpty || isSendingReply) ? 0.9 : 1.0)

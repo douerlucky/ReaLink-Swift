@@ -607,7 +607,7 @@ struct ProfileView: View {
             await MainActor.run {
                 vrManager.setLoadingState(true)
                 vrManager.updateLocationInfoWithURL(
-                    title: contribution.locationName,
+                    title: contribution.locationName, locationId: contribution.locationId,
                     panoramaImageURL: contribution.fileURL
                 )
             }

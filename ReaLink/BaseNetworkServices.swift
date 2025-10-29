@@ -1,7 +1,7 @@
 import Foundation
 
-let backendURL = "http://localhost:3000"
-//192.168.3.139
+let backendURL = "http://192.168.3.132:3000"
+//192.168.3.132
 // 真机http://172.20.10.3:3000
 // 否则http://localhost:3000
 
@@ -160,8 +160,8 @@ struct getQuestionAnswerRequest: Codable {
 struct getQuestionAnswerResponse: Codable {
     let success: Bool
     let questionId: Int64
-    let questionTitle: String
-    let questionContent: String
+    let questionTitle: String?      // 改为可选，防止服务器不返回时解码失败
+    let questionContent: String?    // 改为可选，防止服务器不返回时解码失败
     let answerCount: Int
     let answers: [AnswerData]
 }
@@ -451,7 +451,7 @@ class NetworkManager: ObservableObject {
     }
     
     func sendAnswer(questionId: Int64, userId: Int64, content: String) async throws -> SendAnswerResponse {
-        guard let url = URL(string: "\(baseURL)/explore/question/send-answer") else {
+        guard let url = URL(string: "\(baseURL)/explore/question/send-reply") else {
             throw NetworkError.invalidURL
         }
         
@@ -645,7 +645,7 @@ struct FindNearestLocationResponse: Codable {
     }
     // 在NetworkManager中添加新方法
 extension NetworkManager {
-    func findNearestLocationQuestions(latitude: Double, longitude: Double, maxDistance: Double = 1000) async throws -> FindNearestLocationResponse {
+    func findNearestLocationQuestions(latitude: Double, longitude: Double, maxDistance: Double = 50) async throws -> FindNearestLocationResponse {
         guard let url = URL(string: "\(baseURL)/explore/find-nearest-location-questions") else {
             throw NetworkError.invalidURL
         }
@@ -775,4 +775,3 @@ extension NetworkManager {
         }
     }
 }
-

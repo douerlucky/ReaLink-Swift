@@ -123,6 +123,9 @@ class HandTracker: NSObject, ObservableObject {
     private var isTracking = false
     private let openHandDetector: OpenHandGestureDetector
     
+    // ✅ 新增：用于防止日志刷屏
+    private var lastGestureDetectionTime: [String: Date] = [:]
+    
     init(openHandDetector: OpenHandGestureDetector) {
         self.openHandDetector = openHandDetector
         super.init()
@@ -225,7 +228,25 @@ class HandTracker: NSObject, ObservableObject {
             }
             
             if result.isOpenHand && result.confidence > 0.6 {
-                print("检测到摊开手势! (\(result.chirality == .left ? "左手" : "右手"), 置信度: \(String(format: "%.2f", result.confidence)))")
+                // ✅ 节流：同一个手势1秒内只输出一次日志
+                let key = result.chirality == .left ? "leftHandDetected" : "rightHandDetected"
+                let currentTime = Date()
+                
+                // 检查是否在节流期内
+                if let lastTime = self.lastGestureDetectionTime[key],
+                   currentTime.timeIntervalSince(lastTime) < 1.0 {
+                    // 1秒内的重复检测，不打印日志，但仍然通知代理
+                    self.delegate?.didDetectOpenHandGesture(chirality: result.chirality)
+                    return
+                }
+                
+                // 更新最后检测时间
+                self.lastGestureDetectionTime[key] = currentTime
+                
+                // 打印日志（使用更友好的emoji）
+                print("👌 检测到OK手势! (\(result.chirality == .left ? "左手" : "右手"), 置信度: \(String(format: "%.2f", result.confidence)))")
+                
+                // 通知代理
                 self.delegate?.didDetectOpenHandGesture(chirality: result.chirality)
             }
         }

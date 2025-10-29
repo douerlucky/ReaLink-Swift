@@ -220,7 +220,7 @@ struct SpatialPaintingTab: View
             
             Spacer()
             
-            // 中间：空间绘画开关（单独，居中）
+            // 中间：空间绘画功能总开关（单独，居中）
             Button(action: {
                 brushManager.isPaintingEnabled.toggle()
                 print("🎨 空间绘画模式切换: \(brushManager.isPaintingEnabled)")
@@ -231,7 +231,7 @@ struct SpatialPaintingTab: View
                     Image(systemName: brushManager.isPaintingEnabled ? "paintbrush.pointed.fill" : "paintbrush.pointed")
                         .font(.title3)
                     
-                    Text(brushManager.isPaintingEnabled ? "已启用" : "已禁用")
+                    Text(brushManager.isPaintingEnabled ? "绘画中" : "未启用")
                         .font(.callout)
                         .fontWeight(.medium)
                 }
@@ -244,9 +244,25 @@ struct SpatialPaintingTab: View
             
             Spacer()
             
-            // 右边：刷新、保存（超级紧凑！）
+            // 右边：绘画开关、刷新、保存（超级紧凑！）
             HStack(spacing: 8)
             {
+                // 🔥 新增：绘画功能开关（控制是否可以捏合绘画）
+                Button(action: {
+                    brushManager.isPaintingEnabled.toggle()
+                    print("🎨 绘画功能切换: \(brushManager.isPaintingEnabled)")
+                })
+                {
+                    Image(systemName: brushManager.isPaintingEnabled ? "hand.tap.fill" : "hand.tap")
+                        .font(.title3)
+                        .foregroundColor(.white)
+                        .frame(width: 64, height: 64)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(brushManager.isPaintingEnabled ? .green : .gray)
+                .clipShape(Circle())
+                .buttonBorderShape(.circle)
+                
                 // 刷新按钮
                 Button(action: {
                     print("🎨 用户点击刷新绘画数据按钮")

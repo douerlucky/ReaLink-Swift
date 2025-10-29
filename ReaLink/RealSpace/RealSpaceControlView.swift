@@ -2,8 +2,11 @@
 //  RealSpaceControlView.swift
 //  ReaLink
 //
-//  Created by douer_lucky on 2025/8/14.
+//  ✅ 修复版本：
+//  1. 防止重复打开 MainWindow
+//  2. OK手势只在所有窗口关闭后才检测
 //
+
 import ARKit
 import RealityKit
 import RealityKitContent
@@ -17,6 +20,9 @@ struct ControlMenuWindow: View
     @Environment(\.dismissWindow) private var dismissWindow
 
     @EnvironmentObject var vrManager: VRSessionManager
+    
+    // ✅ 新增：跟踪退出流程状态，防止重复执行
+    @State private var isExitingImmersive = false
 
     var body: some View
     {
@@ -73,13 +79,16 @@ struct ControlMenuWindow: View
                 dismissWindow(id: "ControlMenuWindow")
             })
             {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.title3)
+                Image(systemName: "xmark")
+                    .font(.title)
                     .foregroundStyle(.secondary)
                     .symbolRenderingMode(.hierarchical)
+                    .frame(width: 64,height:64)
             }
-            .buttonStyle(.plain)
-            .hoverEffect()
+            .buttonStyle(.borderedProminent)
+            .clipShape(Circle())
+            .buttonBorderShape(.circle)
+            .hoverEffect(.highlight)
         }
     }
 
@@ -104,21 +113,22 @@ struct ControlMenuWindow: View
     private var exitButton: some View
     {
         Button(action: {
+            // ✅ 防止重复执行退出流程
+            guard !isExitingImmersive else {
+                print("⚠️ 退出流程已在进行中，忽略重复点击")
+                return
+            }
+            
+            isExitingImmersive = true
             print("🚪【开始退出全景模式流程】")
             
-            // ✅ 1️⃣ 先发送重置所有VR状态的通知（包含场景重置）
+            // ✅ 1️⃣ 先发送重置所有VR状态的通知（包括场景重置）
             NotificationCenter.default.post(
                 name: NSNotification.Name("ResetAllVRStates"),
                 object: nil
             )
             print("📢 已发送重置所有VR状态通知")
-            
-            // ✅ 2️⃣ 发送退出实景模式通知
-            NotificationCenter.default.post(
-                name: NSNotification.Name("ExitImmersiveSpace"),
-                object: nil
-            )
-            print("📢 已发送退出实景模式通知")
+
 
             // ✅ 3️⃣ 等待通知处理完成，然后关闭所有窗口
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
@@ -152,9 +162,21 @@ struct ControlMenuWindow: View
                     await self.dismissImmersiveSpace()
                     print("✅【沉浸式空间已退出】")
                     
-                    // ✅ 5️⃣ 打开主窗口
-                    self.openWindow(id: "MainWindow")
-                    print("✅【主窗口已打开】")
+                    // ✅ 5️⃣ 确保沉浸式空间完全关闭后，再打开主窗口
+                    // 这里延迟更长时间，确保所有清理工作完成
+                    try? await Task.sleep(nanoseconds: 500_000_000) // 0.5秒
+                    
+                    // ✅ 关键修复：只打开一次 MainWindow
+                    // 使用 async/await 确保在主线程执行
+                    await MainActor.run {
+                        self.openWindow(id: "MainWindow")
+                        print("✅【主窗口已打开】")
+                    }
+                    
+                    // ✅ 重置退出状态标志
+                    await MainActor.run {
+                        self.isExitingImmersive = false
+                    }
                     
                     print("🎉【退出全景模式完成，所有状态已重置】")
                 }
@@ -209,6 +231,7 @@ struct ControlMenuWindow: View
         }
         .buttonStyle(.plain)
         .hoverEffect()
+        .disabled(isExitingImmersive) // ✅ 退出过程中禁用按钮
     }
 
     // MARK: - 操作指南卡片
@@ -320,7 +343,7 @@ struct OperationGuideRow: View
         .environmentObject({
             let manager = VRSessionManager.shared
             manager.updateLocationInfo(
-                title: "华中农业大学梧桐广场",
+                title: "华中农业大学梧桐广场", locationId: 2,
                 panoramaImage: "docklands_02"
             )
             return manager

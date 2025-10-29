@@ -1,15 +1,225 @@
 import SwiftUI
 import MapKit
 
+// MARK: - ✅ 增强版窗口状态管理器
 class WindowStateManager: ObservableObject {
-    @Published var isRealityWindowOpen = false
-    @Published var isControlMenuWindowOpen = false
-    @Published var isImmersiveSpaceOpen = false
+    // MARK: - 单例
+    static let shared = WindowStateManager()
+    
+    // MARK: - 窗口状态属性
+    
+    /// RealityWindow - 问题详情窗口
+    @Published var isRealityWindowOpen = false {
+        didSet {
+            if isRealityWindowOpen != oldValue {
+                print("🪟 [RealityWindow] 状态变更: \(isRealityWindowOpen ? "打开" : "关闭")")
+            }
+        }
+    }
+    
+    /// ControlMenuWindow - 控制菜单窗口
+    @Published var isControlMenuWindowOpen = false {
+        didSet {
+            if isControlMenuWindowOpen != oldValue {
+                print("🪟 [ControlMenuWindow] 状态变更: \(isControlMenuWindowOpen ? "打开" : "关闭")")
+            }
+        }
+    }
+    
+    /// ModelControlWindow - 模型控制窗口
+    @Published var isModelControlWindowOpen = false {
+        didSet {
+            if isModelControlWindowOpen != oldValue {
+                print("🪟 [ModelControlWindow] 状态变更: \(isModelControlWindowOpen ? "打开" : "关闭")")
+            }
+        }
+    }
+    
+    /// AIAssistantWindow - AI助手窗口
+    @Published var isAIAssistantWindowOpen = false {
+        didSet {
+            if isAIAssistantWindowOpen != oldValue {
+                print("🪟 [AIAssistantWindow] 状态变更: \(isAIAssistantWindowOpen ? "打开" : "关闭")")
+            }
+        }
+    }
+    
+    /// ModelsListWindow - 模型列表窗口
+    @Published var isModelsListWindowOpen = false {
+        didSet {
+            if isModelsListWindowOpen != oldValue {
+                print("🪟 [ModelsListWindow] 状态变更: \(isModelsListWindowOpen ? "打开" : "关闭")")
+            }
+        }
+    }
+    
+    /// BrushControlWindow - 画笔控制窗口
+    @Published var isBrushControlWindowOpen = false {
+        didSet {
+            if isBrushControlWindowOpen != oldValue {
+                print("🪟 [BrushControlWindow] 状态变更: \(isBrushControlWindowOpen ? "打开" : "关闭")")
+            }
+        }
+    }
+    
+    /// ImmersiveSpace - 沉浸式空间状态
+    @Published var isImmersiveSpaceOpen = false {
+        didSet {
+            if isImmersiveSpaceOpen != oldValue {
+                print("🌌 [ImmersiveSpace] 状态变更: \(isImmersiveSpaceOpen ? "打开" : "关闭")")
+            }
+        }
+    }
+    
+    // MARK: - 初始化
+    
+    public init() {
+        setupNotificationListeners()
+        print("✅ WindowStateManager 已初始化")
+    }
+    
+    // MARK: - 通知监听
+    
+    private func setupNotificationListeners() {
+        // 监听各个窗口的关闭通知
+        
+        NotificationCenter.default.addObserver(
+            forName: NSNotification.Name("RealityWindowClosed"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.isRealityWindowOpen = false
+        }
+        
+        NotificationCenter.default.addObserver(
+            forName: NSNotification.Name("ControlMenuWindowClosed"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.isControlMenuWindowOpen = false
+        }
+        
+        NotificationCenter.default.addObserver(
+            forName: NSNotification.Name("ModelControlWindowClosed"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.isModelControlWindowOpen = false
+        }
+        
+        NotificationCenter.default.addObserver(
+            forName: NSNotification.Name("AIAssistantWindowClosed"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.isAIAssistantWindowOpen = false
+        }
+        
+        NotificationCenter.default.addObserver(
+            forName: NSNotification.Name("ModelsListWindowClosed"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.isModelsListWindowOpen = false
+        }
+        
+        NotificationCenter.default.addObserver(
+            forName: NSNotification.Name("BrushControlWindowClosed"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.isBrushControlWindowOpen = false
+        }
+        
+        // 监听重置所有状态的通知
+        NotificationCenter.default.addObserver(
+            forName: NSNotification.Name("ResetAllVRStates"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.resetAllWindowStates()
+        }
+        
+        print("✅ WindowStateManager 通知监听器已设置")
+    }
+    
+    // MARK: - 公共方法
+    
+    /// 检查是否所有窗口都已关闭
+    /// - Returns: 如果所有窗口都关闭返回 true
+    func areAllWindowsClosed() -> Bool {
+        let allClosed = !isRealityWindowOpen &&
+                       !isControlMenuWindowOpen &&
+                       !isModelControlWindowOpen &&
+                       !isAIAssistantWindowOpen &&
+                       !isModelsListWindowOpen &&
+                       !isBrushControlWindowOpen
+        
+        if !allClosed {
+            print("⚠️【窗口状态】还有窗口未关闭:")
+            printCurrentWindowStates()
+        } else {
+            print("✅【窗口状态】所有窗口都已关闭")
+        }
+        
+        return allClosed
+    }
+    
+    /// ✅ 检查关键窗口是否都已关闭（不包括辅助窗口）
+    /// 这是用于OK手势检测的核心方法
+    /// - Returns: 如果关键窗口都关闭返回 true
+    func areCriticalWindowsClosed() -> Bool {
+        // 关键窗口：RealityWindow、ControlMenuWindow
+        // 这些窗口打开时不应该响应OK手势
+        let criticalClosed = !isRealityWindowOpen && !isControlMenuWindowOpen
+        
+        if !criticalClosed {
+            print("⚠️【关键窗口检查】还有关键窗口未关闭:")
+            if isRealityWindowOpen {
+                print("   - RealityWindow: 打开中")
+            }
+            if isControlMenuWindowOpen {
+                print("   - ControlMenuWindow: 打开中")
+            }
+        } else {
+            print("✅【关键窗口检查】所有关键窗口都已关闭，可以响应OK手势")
+        }
+        
+        return criticalClosed
+    }
+    
+    /// 重置所有窗口状态
+    func resetAllWindowStates() {
+        print("🧹【WindowStateManager】重置所有窗口状态")
+        
+        isRealityWindowOpen = false
+        isControlMenuWindowOpen = false
+        isModelControlWindowOpen = false
+        isAIAssistantWindowOpen = false
+        isModelsListWindowOpen = false
+        isBrushControlWindowOpen = false
+        
+        print("✅【WindowStateManager】所有窗口状态已重置")
+    }
+    
+    /// 打印当前所有窗口状态（调试用）
+    func printCurrentWindowStates() {
+        print("📊【当前窗口状态】")
+        print("   - RealityWindow: \(isRealityWindowOpen ? "打开" : "关闭")")
+        print("   - ControlMenuWindow: \(isControlMenuWindowOpen ? "打开" : "关闭")")
+        print("   - ModelControlWindow: \(isModelControlWindowOpen ? "打开" : "关闭")")
+        print("   - AIAssistantWindow: \(isAIAssistantWindowOpen ? "打开" : "关闭")")
+        print("   - ModelsListWindow: \(isModelsListWindowOpen ? "打开" : "关闭")")
+        print("   - BrushControlWindow: \(isBrushControlWindowOpen ? "打开" : "关闭")")
+        print("   - ImmersiveSpace: \(isImmersiveSpaceOpen ? "打开" : "关闭")")
+    }
 }
 
+// MARK: - VRSessionManager (保持原样)
 @MainActor
 class VRSessionManager: ObservableObject {
     @Published var currentLocationTitle: String = "未知位置"
+    @Published var currentLocationId: Int64 = 0
     @Published var panoramaImageName: String = ""
     @Published var panoramaImageURL: String = ""
     @Published var isLoadingPanorama: Bool = false
@@ -20,21 +230,23 @@ class VRSessionManager: ObservableObject {
     
     private init() {}
     
-    func updateLocationInfo(title: String, panoramaImage: String) {
+    func updateLocationInfo(title: String, locationId: Int64, panoramaImage: String) {
         Task { @MainActor in
             self.currentLocationTitle = title
+            self.currentLocationId = locationId
             self.panoramaImageName = panoramaImage
             self.panoramaImageURL = ""
-            print("更新本地全景图: \(panoramaImage)")
+            print("更新本地全景图: \(panoramaImage), LocationID: \(locationId)")
         }
     }
     
-    func updateLocationInfoWithURL(title: String, panoramaImageURL: String) {
+    func updateLocationInfoWithURL(title: String, locationId: Int64, panoramaImageURL: String) {
         Task { @MainActor in
             self.currentLocationTitle = title
+            self.currentLocationId = locationId
             self.panoramaImageURL = panoramaImageURL
             self.panoramaImageName = ""
-            print("更新URL全景图: \(panoramaImageURL)")
+            print("更新URL全景图: \(panoramaImageURL), LocationID: \(locationId)")
         }
     }
     
@@ -51,6 +263,7 @@ class VRSessionManager: ObservableObject {
     
     func resetPanoramaState() {
         Task { @MainActor in
+            self.currentLocationId = 0
             self.panoramaImageName = ""
             self.panoramaImageURL = ""
             self.isLoadingPanorama = false
@@ -58,11 +271,12 @@ class VRSessionManager: ObservableObject {
         }
     }
     
-    func getCurrentState() -> (title: String, imageName: String, imageURL: String, isLoading: Bool) {
-        return (currentLocationTitle, panoramaImageName, panoramaImageURL, isLoadingPanorama)
+    func getCurrentState() -> (title: String, locationId: Int64, imageName: String, imageURL: String, isLoading: Bool) {
+        return (currentLocationTitle, currentLocationId, panoramaImageName, panoramaImageURL, isLoadingPanorama)
     }
 }
 
+// MARK: - TargetQuesitonManager (保持原样)
 @MainActor
 class TargetQuesitonManager: ObservableObject {
     @Published var currentQuestion: Question = Question_1
@@ -76,18 +290,17 @@ class TargetQuesitonManager: ObservableObject {
     }
 }
 
+// MARK: - 主应用
 @main
 struct ReaLinkApp: App {
     @State private var appModel = AppModel()
     @StateObject private var vrManager = VRSessionManager.shared
     @StateObject private var targetQuestionManager = TargetQuesitonManager.shared
-    @StateObject private var windowStateManager = WindowStateManager()
+    @StateObject private var windowStateManager = WindowStateManager.shared  // ✅ 使用单例
     @StateObject private var userManager = UserManager.shared
     
-    // 🔥 新增：监听场景阶段
     @Environment(\.scenePhase) private var scenePhase
     
-    // 🔥 新增：跟踪清理状态，避免重复执行
     @State private var isCleaningUp = false
     
     var body: some Scene {
@@ -108,7 +321,6 @@ struct ReaLinkApp: App {
                         }
                     }
                 }
-                // 🔥 关键修改：监听场景阶段变化
                 .onChange(of: scenePhase) { oldPhase, newPhase in
                     handleScenePhaseChange(oldPhase: oldPhase, newPhase: newPhase)
                 }
@@ -163,14 +375,27 @@ struct ReaLinkApp: App {
         .upperLimbVisibility(.visible)
         .immersionStyle(selection: .constant(.full), in: .full)
 
+        // ✅ ModelsListWindow - 添加状态管理
         WindowGroup(id: "ModelsListWindow") {
             ModelsListManagementView()
                 .environmentObject(userManager)
+                .environmentObject(windowStateManager)  // ✅ 注入
                 .frame(width: 400, height: 600)
+                .onAppear {
+                    windowStateManager.isModelsListWindowOpen = true
+                }
+                .onDisappear {
+                    windowStateManager.isModelsListWindowOpen = false
+                    NotificationCenter.default.post(
+                        name: NSNotification.Name("ModelsListWindowClosed"),
+                        object: nil
+                    )
+                }
         }
         .windowResizability(.contentSize)
         .defaultSize(width: 400, height: 600)
         
+        // ✅ RealityWindow - 已有状态管理
         WindowGroup(id: "RealityWindow") {
             RealityWindowView()
                 .environmentObject(vrManager)
@@ -193,11 +418,13 @@ struct ReaLinkApp: App {
         }
         .windowResizability(.contentSize)
         
+        // ✅ AIAssistantWindow - 添加状态管理
         WindowGroup(id: "AIAssistantWindow") {
             AIAssistantWindow()
                 .environmentObject(userManager)
                 .environmentObject(targetQuestionManager)
                 .environmentObject(vrManager)
+                .environmentObject(windowStateManager)  // ✅ 注入
                 .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenAIAssistantWindow"))) { notification in
                     print("🤖 AI助手窗口收到通知")
                     if let question = notification.userInfo?["question"] as? Question {
@@ -210,33 +437,56 @@ struct ReaLinkApp: App {
                     }
                 }
                 .onAppear {
+                    windowStateManager.isAIAssistantWindowOpen = true
                     print("🤖 独立AI助手窗口已打开")
                 }
                 .onDisappear {
+                    windowStateManager.isAIAssistantWindowOpen = false
+                    NotificationCenter.default.post(
+                        name: NSNotification.Name("AIAssistantWindowClosed"),
+                        object: nil
+                    )
                     print("🤖 独立AI助手窗口已关闭")
                 }
         }
         .windowResizability(.contentSize)
         .defaultSize(width: 600, height: 700)
         
+        // ✅ ControlMenuWindow - 已有状态管理
         WindowGroup(id: "ControlMenuWindow") {
             ControlMenuWindow()
                 .environmentObject(vrManager)
                 .environmentObject(userManager)
+                .environmentObject(windowStateManager)  // ✅ 注入
                 .onAppear {
                     windowStateManager.isControlMenuWindowOpen = true
                 }
                 .onDisappear {
                     windowStateManager.isControlMenuWindowOpen = false
+                    NotificationCenter.default.post(
+                        name: NSNotification.Name("ControlMenuWindowClosed"),
+                        object: nil
+                    )
                 }
                 .frame(width: 450)
-
         }
         .windowResizability(.contentSize)
         
+        // ✅ BrushControlWindow - 添加状态管理
         WindowGroup(id: "BrushControlWindow") {
             BrushControlWindow()
+                .environmentObject(windowStateManager)  // ✅ 注入
                 .frame(width: 400)
+                .onAppear {
+                    windowStateManager.isBrushControlWindowOpen = true
+                }
+                .onDisappear {
+                    windowStateManager.isBrushControlWindowOpen = false
+                    NotificationCenter.default.post(
+                        name: NSNotification.Name("BrushControlWindowClosed"),
+                        object: nil
+                    )
+                }
         }
         .windowResizability(.contentSize)
         .defaultSize(width: 400, height: 600)
@@ -254,9 +504,21 @@ struct ReaLinkApp: App {
         .upperLimbVisibility(.visible)
         .immersionStyle(selection: .constant(.full), in: .full)
         
+        // ✅ ModelControlWindow - 添加状态管理
         WindowGroup(id: "ModelControlWindow") {
             ModelControlWindow()
+                .environmentObject(windowStateManager)  // ✅ 注入
                 .frame(width: 400)
+                .onAppear {
+                    windowStateManager.isModelControlWindowOpen = true
+                }
+                .onDisappear {
+                    windowStateManager.isModelControlWindowOpen = false
+                    NotificationCenter.default.post(
+                        name: NSNotification.Name("ModelControlWindowClosed"),
+                        object: nil
+                    )
+                }
         }
         .windowResizability(.contentSize)
         .defaultSize(width: 400, height: 700)
@@ -275,28 +537,25 @@ struct ReaLinkApp: App {
         .immersionStyle(selection: .constant(.full), in: .full)
     }
     
-    // MARK: - 🔥 场景阶段变化处理
+    // MARK: - 场景阶段变化处理
     
     private func handleScenePhaseChange(oldPhase: ScenePhase, newPhase: ScenePhase) {
         print("📱 场景阶段变化: \(oldPhase) -> \(newPhase)")
         
-        // 当进入后台或不活跃状态时，执行清理
         if (newPhase == .background || newPhase == .inactive) && oldPhase == .active {
             print("⚠️ 应用进入后台，开始清理全景模式...")
             performBackgroundCleanup()
         }
         
-        // 当重新激活时，重置清理标志
         if newPhase == .active {
             isCleaningUp = false
             print("✅ 应用重新激活")
         }
     }
     
-    // MARK: - 🔥 后台清理核心方法
+    // MARK: - 后台清理核心方法
     
     private func performBackgroundCleanup() {
-        // 防止重复执行
         guard !isCleaningUp else {
             print("⏭️ 清理已在进行中，跳过")
             return
@@ -306,53 +565,41 @@ struct ReaLinkApp: App {
         print("🧹 【开始执行后台清理 - Vision Pro 已摘下】")
         
         Task { @MainActor in
-            // 0️⃣ 🔥 先发送重置通知，让 BasicPanoramaView 清理状态
             NotificationCenter.default.post(
                 name: NSNotification.Name("ResetAllVRStates"),
                 object: nil
             )
             print("📢 已发送重置所有VR状态通知")
             
-            // 等待一小段时间让通知处理完成
-            try? await Task.sleep(nanoseconds: 200_000_000) // 0.2秒
+            try? await Task.sleep(nanoseconds: 200_000_000)
             
-            // 1️⃣ 关闭所有关联窗口
             closeAllAssociatedWindows()
             
-            // 2️⃣ 等待窗口关闭完成
-            try? await Task.sleep(nanoseconds: 300_000_000) // 0.3秒
+            try? await Task.sleep(nanoseconds: 300_000_000)
             
-            // 3️⃣ 关闭所有ImmersiveSpace
             await closeAllImmersiveSpaces()
             
-            // 4️⃣ 重置所有状态
             resetAllStates()
             
-            // 5️⃣ 确保回到MainTabView
             ensureMainTabViewActive()
             
             print("✅ 【后台清理完成 - 已恢复到初始状态】")
         }
     }
     
-    // MARK: - 🔥 关闭所有ImmersiveSpace
+    // MARK: - 关闭所有ImmersiveSpace
     
     private func closeAllImmersiveSpaces() async {
         print("🌌 关闭所有沉浸式空间...")
         
-        // 使用dismissImmersiveSpace()会关闭当前活动的沉浸式空间
-        // visionOS会自动处理，无需指定ID
         if windowStateManager.isImmersiveSpaceOpen {
             do {
-                // 🔥 关键：使用Environment获取dismissImmersiveSpace
-                // 由于我们在App级别，需要通过发送通知来触发关闭
                 NotificationCenter.default.post(
                     name: NSNotification.Name("CloseAllImmersiveSpaces"),
                     object: nil
                 )
                 
-                // 等待一小段时间确保关闭完成
-                try await Task.sleep(nanoseconds: 500_000_000) // 0.5秒
+                try await Task.sleep(nanoseconds: 500_000_000)
                 
                 print("✅ 沉浸式空间已关闭")
             } catch {
@@ -363,7 +610,7 @@ struct ReaLinkApp: App {
         }
     }
     
-    // MARK: - 🔥 关闭所有关联窗口
+    // MARK: - 关闭所有关联窗口
     
     private func closeAllAssociatedWindows() {
         print("🪟 关闭所有关联窗口...")
@@ -389,26 +636,21 @@ struct ReaLinkApp: App {
         print("✅ 所有窗口关闭请求已发送")
     }
     
-    // MARK: - 🔥 重置所有状态
+    // MARK: - 重置所有状态
     
     private func resetAllStates() {
         print("🔄 重置所有状态...")
         
-        // 1. 重置窗口状态
-        windowStateManager.isRealityWindowOpen = false
-        windowStateManager.isControlMenuWindowOpen = false
-        windowStateManager.isImmersiveSpaceOpen = false
+        // ✅ 使用 WindowStateManager 的重置方法
+        windowStateManager.resetAllWindowStates()
         print("  ✓ 窗口状态已重置")
         
-        // 2. 重置VR会话状态
         vrManager.resetPanoramaState()
         print("  ✓ VR会话状态已重置")
         
-        // 3. 重置AppModel状态
         appModel.reset()
         print("  ✓ AppModel状态已重置")
         
-        // 4. 发送全局重置通知
         NotificationCenter.default.post(
             name: NSNotification.Name("ResetAllVRStates"),
             object: nil
@@ -418,15 +660,13 @@ struct ReaLinkApp: App {
         print("✅ 所有状态已重置")
     }
     
-    // MARK: - 🔥 确保MainTabView激活
+    // MARK: - 确保MainTabView激活
     
     private func ensureMainTabViewActive() {
         print("🏠 确保MainTabView激活...")
         
-        // 重置到Explore标签页（第一个标签）
         appModel.selectedTab = 0
         
-        // 关闭全屏地图和问题面板
         appModel.hideFullscreenMap()
         appModel.hideQuestionsPanel()
         

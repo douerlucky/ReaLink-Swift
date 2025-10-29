@@ -32,11 +32,16 @@ struct AddRealSpace: View {
                 Button(action: {
                     dismiss()
                 }) {
-                    Image(systemName: "xmark.circle.fill")
+                    Image(systemName: "xmark")
                         .font(.title2)
                         .foregroundColor(.secondary)
+                        .frame(width: 64,height: 64)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.borderedProminent)
+                .clipShape(Circle())
+                .buttonBorderShape(.circle)  // 添加圆形边框
+                .hoverEffect(.highlight)
+                
                 
                 Spacer()
                 

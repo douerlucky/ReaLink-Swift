@@ -889,9 +889,12 @@ struct AIAssistantContent: View
                     {
                         Image(systemName: "paperplane.fill")
                             .foregroundColor(.white)
+                            .frame(width: 64,height: 64)
                     }
                 }
                 .buttonStyle(.borderedProminent)
+                .clipShape(Circle())
+                .buttonBorderShape(.circle)  // 添加这个
                 .tint(core.headerColor)
                 .disabled(core.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || core.isLoading)
             }
@@ -1115,11 +1118,15 @@ struct AIAssistant: View
                 closeAssistant()
             })
             {
-                Image(systemName: "xmark.circle.fill")
+                Image(systemName: "xmark")
                     .font(.system(size: 18, weight: .medium))
                     .foregroundColor(.secondary)
+                    .frame(width: 64,height: 64)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.borderedProminent)
+            .clipShape(Circle())
+            .buttonBorderShape(.circle)  // 添加圆形边框
+            .hoverEffect(.highlight)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -1423,9 +1430,7 @@ struct AIAssistantWindow: View
                 Text("AI 智能助手")
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundColor(.primary)
-                Text("Reality模式专用")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+
             }
 
             Spacer()
@@ -1477,11 +1482,14 @@ struct AIAssistantWindow: View
                 dismissWindow(id: "AIAssistantWindow")
             })
             {
-                Image(systemName: "xmark.circle.fill")
+                Image(systemName: "xmark")
                     .font(.system(size: 20, weight: .medium))
                     .foregroundColor(.secondary)
+                    .frame(width: 64,height: 64)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.borderedProminent)
+            .clipShape(Circle())
+            .buttonBorderShape(.circle)  // 添加圆形边框
             .hoverEffect(.highlight)
         }
     }

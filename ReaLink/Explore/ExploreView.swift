@@ -119,7 +119,7 @@ struct ExploreView: View
             await MainActor.run
             {
                 vrManager.updateLocationInfoWithURL(
-                    title: location.name, // ✅ 直接使用 location.name
+                    title: location.name, locationId: location.id, // ✅ 直接使用 location.name
                     panoramaImageURL: view3DData.fileURL
                 )
 
@@ -152,7 +152,7 @@ struct ExploreView: View
                 if let view3D = realities.first(where: { $0.locationID == location.id })
                 {
                     vrManager.updateLocationInfo(
-                        title: location.name, // ✅ 使用 location.name
+                        title: location.name, locationId: location.id, // ✅ 使用 location.name
                         panoramaImage: view3D.filename
                     )
 
@@ -1439,7 +1439,11 @@ struct LocationDetailSidebar: View
                             .font(.body)
                             .fontWeight(.medium)
                             .foregroundColor(.white)
+                            .frame(width:64,height:64)
                     }
+                    .buttonStyle(.borderedProminent)
+                    .clipShape(Circle())
+                    .buttonBorderShape(.circle)  // 添加圆形边框
                     .hoverEffect(.highlight)
                 }
                 .padding(.horizontal, 20)

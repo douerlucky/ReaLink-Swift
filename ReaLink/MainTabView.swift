@@ -152,7 +152,7 @@ struct DebugView: View {
                     }) {
                         Label(
                             isPaintingSpaceOpen ? "退出绘画空间" : "进入绘画空间",
-                            systemImage: isPaintingSpaceOpen ? "xmark.circle" : "paintpalette"
+                            systemImage: isPaintingSpaceOpen ? "xmark" : "paintpalette"
                         )
                         .frame(maxWidth: .infinity)
                         .padding()
@@ -216,7 +216,7 @@ struct DebugView: View {
                     }) {
                         Label(
                             isModelTestingSpaceOpen ? "退出模型测试空间" : "进入模型测试空间",
-                            systemImage: isModelTestingSpaceOpen ? "xmark.circle" : "cube.transparent"
+                            systemImage: isModelTestingSpaceOpen ? "xmark" : "cube.transparent"
                         )
                         .frame(maxWidth: .infinity)
                         .padding()

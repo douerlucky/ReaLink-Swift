@@ -56,7 +56,10 @@ struct LoginView: View {
                                 .background(.regularMaterial, in: Circle())
                                 .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 2)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.borderedProminent)
+                        .clipShape(Circle())
+                        .buttonBorderShape(.circle)  // 添加圆形边框
+                        .hoverEffect(.highlight)
                         .padding(.top, 20)
                         .padding(.trailing, 20)
                         .opacity(formOpacity)
@@ -324,7 +327,10 @@ struct RegisterView: View {
                                 .background(.regularMaterial, in: Circle())
                                 .shadow(color: .black.opacity(0.1), radius: 8, x: 0, y: 2)
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(.borderedProminent)
+                        .clipShape(Circle())
+                        .buttonBorderShape(.circle)  // 添加圆形边框
+                        .hoverEffect(.highlight)
                         .padding(.top, 20)
                         .padding(.trailing, 20)
                         .opacity(formOpacity)
@@ -400,7 +406,7 @@ struct RegisterView: View {
                         // 密码匹配提示
                         if !confirmPassword.isEmpty && password != confirmPassword {
                             HStack {
-                                Image(systemName: "xmark.circle.fill")
+                                Image(systemName: "xmark")
                                     .foregroundColor(.red)
                                 Text("密码不匹配")
                                     .font(.caption)

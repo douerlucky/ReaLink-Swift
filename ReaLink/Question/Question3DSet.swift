@@ -1,6 +1,7 @@
 import SwiftUI
 import RealityKit
 import RealityKitContent
+import ARKit  // ✅ 添加ARKit导入
 
 struct Question3DSet: View {
     @Environment(\.openWindow) private var openWindow
@@ -12,10 +13,15 @@ struct Question3DSet: View {
     // 问题设置相关状态
     @State private var questionBallEntity: ModelEntity?
     @State private var isQuestionBallPlaced = false
-    @State private var questionBallPosition: SIMD3<Float> = SIMD3<Float>(0, 1.5, -2.0) // 初始位置在用户前方
-    @State private var showConfirmDialog = false
+    @State private var questionBallPosition: SIMD3<Float> = SIMD3<Float>(0, 1.5, -2.0) // 初始位置（会被手部位置覆盖）
     @State private var dragOffset: SIMD3<Float> = .zero
     @State private var isDragging = false
+    
+    // ✅ ARKit 手部和设备追踪
+    @State private var arSession = ARKitSession()
+    @State private var handTrackingProvider = HandTrackingProvider()
+    @State private var worldTrackingProvider = WorldTrackingProvider()
+    @State private var hasInitializedPosition = false  // 标记是否已经初始化位置
     
     // 回调函数
     let onPositionSet: (SIMD3<Float>) -> Void
@@ -76,7 +82,7 @@ struct Question3DSet: View {
                             .fontWeight(.bold)
                             .foregroundColor(.white)
                         
-                        Text("拖动橙色球体到合适的位置，然后点击确认")
+                        Text("拖动橙色球体到合适位置，单击球体确认位置")
                             .font(.subheadline)
                             .foregroundColor(.white.opacity(0.8))
                     }
@@ -96,41 +102,22 @@ struct Question3DSet: View {
                 Spacer()
             }
             
-            // 确认对话框
-            if showConfirmDialog {
-                Color.black.opacity(0.5)
-                    .ignoresSafeArea()
-                
-                VStack(spacing: 20) {
-                    Text("确认位置")
-                        .font(.title2)
-                        .fontWeight(.bold)
-                    
-                    Text("是否将问题球放置在当前位置？")
-                        .multilineTextAlignment(.center)
-                    
-                    HStack(spacing: 16) {
-                        Button("取消") {
-                            showConfirmDialog = false
-                        }
-                        .buttonStyle(.bordered)
-                        
-                        Button("确认") {
-                            confirmQuestionPosition()
-                        }
-                        .buttonStyle(.borderedProminent)
-                    }
-                }
-                .padding(24)
-                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
-                .shadow(radius: 10)
-            }
         }
         .onAppear {
             print("🎯【Question3DSet】视图出现")
+            
+            // ✅ 启动ARKit追踪
+            Task {
+                await startARKitTracking()
+            }
         }
         .onDisappear {
             print("🎯【Question3DSet】视图消失")
+            
+            // ✅ 停止ARKit追踪
+            Task {
+                await arSession.stop()
+            }
         }
     }
     
@@ -166,6 +153,10 @@ struct Question3DSet: View {
         // 翻转球体使内表面可见
         sphere.scale = SIMD3<Float>(-1, 1, 1)
         sphere.position = SIMD3<Float>(0, 0, 0)
+        
+        // 🔥 关键修复：应用与 BasicPanoramaView 相同的天空球旋转
+        sphere.transform.rotation = SceneManager.SkyboxConfig.rotation
+        print("🎯【Question3DSet】应用统一的天空球旋转: \(String(format: "%.1f", SceneManager.SkyboxConfig.yawAngle * 180.0 / .pi))°")
         
         // 异步加载真实材质
         Task {
@@ -301,6 +292,10 @@ struct Question3DSet: View {
             return
         }
         
+        // ✅ 获取初始位置（手部位置或用户前方位置）
+        let initialPosition = await getInitialBallPosition()
+        questionBallPosition = initialPosition
+        
         // 🔥 使用与BasicPanoramaView完全相同的材质配置
         let brightOrange = UnlitMaterial(color: .systemOrange)
         
@@ -329,6 +324,108 @@ struct Question3DSet: View {
         questionBallEntity = ballEntity
         
         print("🟠【Question3DSet】问题球创建完成(统一样式),位置: \(questionBallPosition)")
+    }
+    
+    // ✅ 新增：获取问题球的初始位置
+    @MainActor
+    private func getInitialBallPosition() async -> SIMD3<Float> {
+        #if targetEnvironment(simulator)
+        // 模拟器：返回固定的前方位置
+        return SIMD3<Float>(0, 1.5, -1.0)
+        #else
+        // 真机：尝试获取手部位置，但不长时间等待
+        print("🤲【Question3DSet】尝试获取手部位置...")
+        
+        // 短暂等待ARKit初始化（0.3秒）
+        try? await Task.sleep(nanoseconds: 300_000_000)
+        
+        // 尝试获取当前的手部锚点（非阻塞方式）
+        var handPosition: SIMD3<Float>?
+        
+        // 创建一个超时任务
+        let timeoutTask = Task {
+            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5秒超时
+        }
+        
+        // 创建一个获取手部位置的任务，显式指定返回类型为 SIMD3<Float>?
+        let handTask = Task<SIMD3<Float>?, Never> { // <T, Failure> 这里的 Failure 是 Never
+            for await update in handTrackingProvider.anchorUpdates {
+                if case .added = update.event {
+                    let handAnchor = update.anchor
+                    return SIMD3<Float>(
+                        handAnchor.originFromAnchorTransform.columns.3.x,
+                        handAnchor.originFromAnchorTransform.columns.3.y,
+                        handAnchor.originFromAnchorTransform.columns.3.z
+                    )
+                } else if case .updated = update.event {
+                    let handAnchor = update.anchor
+                    return SIMD3<Float>(
+                        handAnchor.originFromAnchorTransform.columns.3.x,
+                        handAnchor.originFromAnchorTransform.columns.3.y,
+                        handAnchor.originFromAnchorTransform.columns.3.z
+                    )
+                }
+            }
+            // 当 for await 循环终止时（例如 handTrackingProvider 停止），返回 nil
+            return nil
+        }
+        
+        // 等待任一任务完成
+        let result: SIMD3<Float>? = await withTaskGroup(of: SIMD3<Float>?.self) { group -> SIMD3<Float>? in
+            group.addTask { await handTask.value }
+            group.addTask {
+                await timeoutTask.value
+                return nil
+            }
+            
+            // 返回第一个非nil结果
+            for await value in group {
+                if let pos = value {
+                    group.cancelAll()
+                    return pos
+                }
+            }
+            return nil
+        }
+        
+        if let position = result {
+            print("✅【Question3DSet】使用手部位置: \(position)")
+            return position
+        }
+        
+        // 如果没有检测到手部，使用设备前方位置
+        print("⚠️【Question3DSet】未检测到手部，使用设备前方位置")
+        return getUserFacingPosition()
+        #endif
+    }
+    
+    // ✅ 新增：获取用户前方位置的辅助方法
+    @MainActor
+    private func getUserFacingPosition() -> SIMD3<Float> {
+        #if targetEnvironment(simulator)
+        return SIMD3<Float>(0, 1.5, -1.0)
+        #else
+        if let deviceAnchor = worldTrackingProvider.queryDeviceAnchor(atTimestamp: CACurrentMediaTime()) {
+            let transform = deviceAnchor.originFromAnchorTransform
+            let devicePosition = SIMD3<Float>(
+                transform.columns.3.x,
+                transform.columns.3.y,
+                transform.columns.3.z
+            )
+            let forward = SIMD3<Float>(
+                -transform.columns.2.x,
+                -transform.columns.2.y,
+                -transform.columns.2.z
+            )
+            // 用户前方0.8米，稍微偏低一点（手部高度）
+            let position = devicePosition + normalize(forward) * 0.8 - SIMD3<Float>(0, 0.2, 0)
+            print("📍【Question3DSet】使用设备前方位置: \(position)")
+            return position
+        }
+        
+        // 兜底：返回固定位置
+        return SIMD3<Float>(0, 1.3, -1.0)
+        #endif
     }
 
     
@@ -368,70 +465,59 @@ struct Question3DSet: View {
         guard let questionBall = questionBallEntity,
               value.entity === questionBall else { return }
         
-        print("🎯【Question3DSet】点击问题球，保存位置但不退出")
+        print("🎯【Question3DSet】点击问题球，确认位置")
         
-        // ✅ 修改：只保存位置，不退出实景
-        saveQuestionPosition()
+        // ✅ 关键修改：只确认位置，不关闭ImmersiveView
+        // ImmersiveView的关闭由QuestionView中的is3DViewOpen控制
+        confirmQuestionPosition()
     }
     
-    // ✅ 新增：保存位置但不退出
-    private func saveQuestionPosition() {
-        print("✅【Question3DSet】保存问题位置: \(questionBallPosition)")
-        
-        // 调用回调函数返回位置
-        onPositionSet(questionBallPosition)
-        
-        // ✅ 不退出实景，让用户可以继续调整或查看
-        // 用户需要点击"取消"按钮才能退出
-        
-        // 可选：给用户一个视觉反馈
-        if let questionBall = questionBallEntity {
-            // 添加一个短暂的颜色变化或缩放效果
-            var greenMaterial = SimpleMaterial()
-            greenMaterial.color = .init(tint: .green)
-            
-            if var modelComponent = questionBall.components[ModelComponent.self] {
-                modelComponent.materials = [greenMaterial]
-                questionBall.components.set(modelComponent)
-            }
-            
-            // 0.5秒后恢复橙色
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                var orangeMaterial = SimpleMaterial()
-                orangeMaterial.color = .init(tint: .orange)
-                
-                if var modelComponent = questionBall.components[ModelComponent.self] {
-                    modelComponent.materials = [orangeMaterial]
-                    questionBall.components.set(modelComponent)
-                }
-            }
-        }
-    }
+    // ✅ 删除saveQuestionPosition方法（不再需要）
 
     
     // MARK: - 操作处理
     private func confirmQuestionPosition() {
-        print("✅【Question3DSet】最终确认并退出")
+        print("✅【Question3DSet】确认位置，位置: \(questionBallPosition)")
         
-        // 调用回调函数返回位置
+        // ✅ 只调用回调函数返回位置，不关闭ImmersiveView
+        // ImmersiveView的关闭由QuestionView中的is3DViewOpen按钮控制
         onPositionSet(questionBallPosition)
         
-        // 退出当前空间
-        Task {
-            await dismissImmersiveSpace()
-        }
+        print("💡【Question3DSet】位置已确认，ImmersiveView保持打开状态")
     }
     
     private func handleCancel() {
-        print("❌【Question3DSet】取消设置位置并退出")
+        print("❌【Question3DSet】取消设置位置")
         
-        // 调用取消回调
+        // ✅ 只调用取消回调，不关闭ImmersiveView
+        // ImmersiveView的关闭由QuestionView中的is3DViewOpen按钮控制
         onCancel()
         
-        // 退出当前空间
-        Task {
-            await dismissImmersiveSpace()
+        print("💡【Question3DSet】已取消位置设置，ImmersiveView保持打开状态")
+    }
+    
+    // ✅ 新增：启动ARKit追踪
+    @MainActor
+    private func startARKitTracking() async {
+        #if !targetEnvironment(simulator)
+        do {
+            print("🚀【Question3DSet】启动ARKit追踪...")
+            
+            // 请求手部追踪权限
+            let handAuthStatus = await HandTrackingProvider.requestUserAuthorization()
+            guard handAuthStatus == .allowed else {
+                print("⚠️【Question3DSet】手部追踪权限被拒绝")
+                return
+            }
+            
+            // 启动ARKit session
+            try await arSession.run([handTrackingProvider, worldTrackingProvider])
+            print("✅【Question3DSet】ARKit追踪已启动")
+            
+        } catch {
+            print("❌【Question3DSet】ARKit追踪启动失败: \(error)")
         }
+        #endif
     }
 }
 

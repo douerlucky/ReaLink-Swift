@@ -1,5 +1,5 @@
 /*
-画笔类型和配置管理
+画笔类型和配置管理 - 增强版（更亮、更粗的发光画笔）
 */
 
 import SwiftUI
@@ -23,6 +23,38 @@ extension UIColor {
             blue: min(1.0, blue * CGFloat(multiplier)),
             alpha: alpha
         )
+    }
+    
+    /// 增强颜色的饱和度和亮度 - 让画笔颜色更鲜艳明亮
+    func enhancedColor(saturationBoost: CGFloat = 1.6, brightnessBoost: CGFloat = 1.5) -> UIColor {
+        var hue: CGFloat = 0
+        var saturation: CGFloat = 0
+        var brightness: CGFloat = 0
+        var alpha: CGFloat = 0
+        
+        self.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha)
+        
+        // 🎨 大幅增强饱和度和亮度
+        let newSaturation = min(1.0, saturation * saturationBoost)
+        let newBrightness = min(1.0, brightness * brightnessBoost)
+        
+        return UIColor(hue: hue, saturation: newSaturation, brightness: newBrightness, alpha: alpha)
+    }
+    
+    // 🔥 新增：超级增强版 - 专为发光材质设计
+    func superEnhancedColor(saturationBoost: CGFloat = 2.0, brightnessBoost: CGFloat = 2.0) -> UIColor {
+        var hue: CGFloat = 0
+        var saturation: CGFloat = 0
+        var brightness: CGFloat = 0
+        var alpha: CGFloat = 0
+        
+        self.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha)
+        
+        // 🔥 极致增强饱和度和亮度
+        let newSaturation = min(1.0, saturation * saturationBoost)
+        let newBrightness = min(1.0, brightness * brightnessBoost)
+        
+        return UIColor(hue: hue, saturation: newSaturation, brightness: newBrightness, alpha: alpha)
     }
 }
 
@@ -69,47 +101,45 @@ struct BrushConfig {
     // 绘制模式：连续绘制或断续绘制
     var mode: BrushMode = .continuous
     
-    // 着色器类型：决定材质的视觉效果（简单/金属/发光/玻璃）
-    var shader: ShaderType = .simple
+    // 🔥 修改：默认使用发光材质
+    var shader: ShaderType = .emissive  // 改为发光材质
     
-    // 画笔大小：半径值，默认1厘米（1E-2 = 0.01米）
-    var size: Float = 1E-2  // 默认大小
+    // 🔥 修改：增加默认画笔大小到 3厘米（更粗）
+    var size: Float = 0.03  // 从 0.01 (10mm) 增加到 0.03 (30mm)
     
-    // 断续模式下点之间的间距：2厘米间隔
-    var dottedSpacing: Float = 0.02  // 断续模式的间距
+    // 断续模式下点之间的间距
+    var dottedSpacing: Float = 0.02
     
-    // 画笔颜色：默认白色
-    var color: UIColor = .white
+    // 🔥 修改：默认使用鲜艳的黄色（发光效果更明显）
+    var color: UIColor = UIColor(red: 1.0, green: 0.9, blue: 0.0, alpha: 1.0)
     
     // MARK: - 材质创建方法
     
     // 根据当前配置创建对应的RealityKit材质
     func createMaterial() -> RealityKit.Material {
-        // 使用switch语句根据着色器类型创建不同的材质
         switch shader {
         case .simple:
-            // 简单材质：不反光的基础材质，粗糙度为1.0（完全漫反射）
-            return SimpleMaterial(color: color, roughness: .float(1.0), isMetallic: false)
+            let enhancedColor = color.enhancedColor()
+            return SimpleMaterial(color: enhancedColor, roughness: .float(0.05), isMetallic: false)
             
         case .metallic:
-            // 金属材质：低粗糙度（0.1）创造反光效果，启用金属属性
-            return SimpleMaterial(color: color, roughness: .float(0.01), isMetallic: true)
+            let enhancedColor = color.enhancedColor()
+            return SimpleMaterial(color: enhancedColor, roughness: .float(0.01), isMetallic: true)
             
         case .emissive:
-            // 发光材质：使用UnlitMaterial创建自发光效果
-            // 创建发光材质，增加炫光效果
-            var material = UnlitMaterial(color: color)
-            // 增加发光强度，让颜色更亮（亮度翻倍）
-            let brighterColor = color.withBrightness(multiplier: 200.0)
-            // 重新创建材质使用更亮的颜色
-            material = UnlitMaterial(color: brighterColor)
+            // 🔥 大幅增强发光效果
+            // 1. 先使用超级增强色彩
+            let superEnhanced = color.superEnhancedColor(saturationBoost: 2.5, brightnessBoost: 2.5)
+            
+            // 2. 再应用超高亮度倍数（从200提升到800）
+            let glowColor = superEnhanced.withBrightness(multiplier: 800.0)
+            
+            var material = UnlitMaterial(color: glowColor)
             return material
             
         case .glass:
-            // 玻璃材质：透明效果的材质
-            // 创建透明玻璃材质，将alpha设为0.1（10%不透明度，90%透明）
-            let glassColor = color.withAlphaComponent(0.1)
-            // 粗糙度为0创造完全光滑的玻璃表面
+            let enhancedColor = color.enhancedColor()
+            let glassColor = enhancedColor.withAlphaComponent(0.15)
             return SimpleMaterial(color: glassColor, roughness: .float(0.0), isMetallic: false)
         }
     }
@@ -158,26 +188,23 @@ struct SerializableStroke: Codable {
     let points: [SerializablePoint3D]
     let brushConfig: BrushConfig
     let timestamp: Date
-    let userId: Int64?  // ✅ 添加用户ID字段
+    let userId: Int64?
     
     init(from advancedStroke: AdvancedStroke) {
         self.points = advancedStroke.points.map(SerializablePoint3D.init)
         self.brushConfig = advancedStroke.brushConfig
         self.timestamp = Date()
-        self.userId = advancedStroke.userId  // ✅ 保存用户ID
+        self.userId = advancedStroke.userId
     }
     
     func toAdvancedStroke() -> AdvancedStroke {
         print("🔧 从序列化数据创建AdvancedStroke，包含 \(points.count) 个点，用户ID: \(userId ?? -1)")
         
-        // ✅ 创建时传入userId
         var stroke = AdvancedStroke(brushConfig: brushConfig, userId: userId)
         
-        // 🔧 修复：验证并过滤有效点
         let validPoints = points.compactMap { serializablePoint -> SIMD3<Float>? in
             let point = serializablePoint.toSIMD3()
             
-            // 检查点是否有效
             guard !point.x.isNaN && !point.y.isNaN && !point.z.isNaN &&
                   point.x.isFinite && point.y.isFinite && point.z.isFinite else {
                 print("⚠️ 跳过无效点: (\(point.x), \(point.y), \(point.z))")
@@ -194,13 +221,13 @@ struct SerializableStroke: Codable {
         return stroke
     }
 }
+
 struct SerializablePoint3D: Codable {
     let x: Float
     let y: Float
     let z: Float
     
     init(_ point: SIMD3<Float>) {
-        // 🔧 修复：确保序列化的点数据有效
         self.x = point.x.isNaN || !point.x.isFinite ? 0.0 : point.x
         self.y = point.y.isNaN || !point.y.isFinite ? 0.0 : point.y
         self.z = point.z.isNaN || !point.z.isFinite ? 0.0 : point.z
@@ -211,14 +238,14 @@ struct SerializablePoint3D: Codable {
     }
 }
 
-// 空间画作数据结构 - 修复：移除answerId，添加userId
+// 空间画作数据结构
 struct SpatialPaintingData: Codable {
     let id: Int64?
     let locationId: Int64?
     let questionId: Int64?
     let userId: Int64?
     let strokes: [SerializableStroke]
-    let createdAt: String  // 🔧 修复：改为String类型
+    let createdAt: String
     let version: String
     
     init(strokes: [SerializableStroke], locationId: Int64? = nil, questionId: Int64? = nil, userId: Int64? = nil) {
@@ -227,11 +254,10 @@ struct SpatialPaintingData: Codable {
         self.questionId = questionId
         self.userId = userId
         self.strokes = strokes
-        self.createdAt = ISO8601DateFormatter().string(from: Date())  // 🔧 修复：转换为字符串
+        self.createdAt = ISO8601DateFormatter().string(from: Date())
         self.version = "1.0"
     }
     
-    // 🔧 新增：自定义解码方法处理不同的时间格式
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         
@@ -242,18 +268,15 @@ struct SpatialPaintingData: Codable {
         strokes = try container.decode([SerializableStroke].self, forKey: .strokes)
         version = try container.decode(String.self, forKey: .version)
         
-        // 🔧 修复：灵活处理createdAt字段
         if let createdAtString = try? container.decode(String.self, forKey: .createdAt) {
             self.createdAt = createdAtString
         } else if let createdAtDouble = try? container.decode(Double.self, forKey: .createdAt) {
-            // 如果是时间戳格式，转换为ISO8601字符串
             let date = Date(timeIntervalSince1970: createdAtDouble)
             self.createdAt = ISO8601DateFormatter().string(from: date)
         } else if let createdAtTimestamp = try? container.decode(TimeInterval.self, forKey: .createdAt) {
             let date = Date(timeIntervalSince1970: createdAtTimestamp)
             self.createdAt = ISO8601DateFormatter().string(from: date)
         } else {
-            // 默认值
             self.createdAt = ISO8601DateFormatter().string(from: Date())
         }
     }

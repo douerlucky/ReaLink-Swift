@@ -340,9 +340,13 @@ struct QuestionView: View
                 VStack(spacing: 8) {
                     Button(action: cancelDrawing) {
                         HStack(spacing: 8) {
-                            Image(systemName: "xmark.circle.fill")
+                            Image(systemName: "xmark")
                             Text("取消绘制")
                         }
+                        .buttonStyle(.borderedProminent)
+                        .clipShape(Circle())
+                        .buttonBorderShape(.circle)  // 添加圆形边框
+                        .hoverEffect(.highlight)
                         .padding(.horizontal, 20)
                         .padding(.vertical, 12)
                     }
@@ -539,7 +543,7 @@ struct QuestionView: View
                 let nearbyResponse = try await NetworkManager.shared.findNearestLocationQuestions(
                     latitude: coordinate.latitude,
                     longitude: coordinate.longitude,
-                    maxDistance: 1000
+                    maxDistance: 50  // 🔧 修改：限制为50米范围内搜索，避免误匹配远处的位置
                 )
 
                 await MainActor.run
@@ -813,7 +817,7 @@ struct QuestionView: View
                 await MainActor.run
                 {
                     vrManager.updateLocationInfoWithURL(
-                        title: location.name,
+                        title: location.name, locationId: location.id,
                         panoramaImageURL: view3DData.fileURL
                     )
                 }
@@ -915,7 +919,7 @@ struct QuestionView: View
                 {
                     self.current3DViewData = view3DData
                     vrManager.updateLocationInfoWithURL(
-                        title: location.name,
+                        title: location.name, locationId: location.id,
                         panoramaImageURL: view3DData.fileURL
                     )
 
@@ -939,7 +943,7 @@ struct QuestionView: View
                     if let view3D = realities.first(where: { $0.locationID == location.id })
                     {
                         vrManager.updateLocationInfo(
-                            title: location.name,
+                            title: location.name, locationId: location.id,
                             panoramaImage: view3D.filename
                         )
 
@@ -1054,6 +1058,9 @@ struct QuestionPublishSidebar: View
                             .fontWeight(.medium)
                             .foregroundColor(.white)
                     }
+                    .buttonStyle(.borderedProminent)
+                    .clipShape(Circle())
+                    .buttonBorderShape(.circle)  // 添加圆形边框
                     .hoverEffect(.highlight)
                 }
                 .padding(.horizontal, 20)
@@ -1301,7 +1308,7 @@ struct QuestionPublishSidebar: View
                                                 // 右下角标签
                                                 HStack(spacing: 6)
                                                 {
-                                                    Image(systemName: is3DViewOpen ? "xmark.circle" : "square.stack.3d.down.right")
+                                                    Image(systemName: is3DViewOpen ? "xmark" : "square.stack.3d.down.right")
                                                         .font(.caption)
                                                     Text(is3DViewOpen ? "关闭3D实景" : "进入3D实景")
                                                         .font(.caption)
@@ -1462,16 +1469,6 @@ struct QuestionPublishSidebar: View
                                                     .fontWeight(.medium)
                                                     .foregroundColor(.green)
                                             }
-
-                                            Text("X: \(String(format: "%.2f", position.x))")
-                                                .font(.caption2)
-                                                .foregroundColor(.secondary)
-                                            Text("Y: \(String(format: "%.2f", position.y))")
-                                                .font(.caption2)
-                                                .foregroundColor(.secondary)
-                                            Text("Z: \(String(format: "%.2f", position.z))")
-                                                .font(.caption2)
-                                                .foregroundColor(.secondary)
 
                                             Button(action: onClear3DPosition)
                                             {
@@ -1634,6 +1631,7 @@ struct QuestionPublishSidebar: View
                         .padding(.top, 12)
                         .disabled(
                             isPublishing ||
+                                is3DViewOpen ||  // ✅ 新增：ImmersiveView打开时禁用发布按钮
                                 selectedAddressMapItem == nil ||
                                 questionTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ||
                                 questionContent.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty

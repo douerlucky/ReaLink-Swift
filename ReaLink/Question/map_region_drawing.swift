@@ -366,7 +366,7 @@ struct QuestionViewWithDrawing: View {
                 VStack(spacing: 8) {
                     Button(action: cancelDrawing) {
                         HStack(spacing: 8) {
-                            Image(systemName: "xmark.circle.fill")
+                            Image(systemName: "xmark")
                             Text("取消绘制")
                         }
                         .padding(.horizontal, 20)

@@ -286,13 +286,22 @@ extension BasicPanoramaView {
     func handleSavePaintingToCloud(locationId: Int64?, questionId: Int64?, userId: Int64?) async {
         print("开始执行云端保存操作")
         
+        // 🔥 修复：如果userId为空或-1，从userManager获取当前用户ID
+        let finalUserId: Int64?
+        if let uid = userId, uid > 0 {
+            finalUserId = uid
+        } else {
+            finalUserId = userManager.getUserId()
+            print("🔥 从userManager获取用户ID: \(finalUserId ?? -1)")
+        }
+        
         do {
             try await paintingCanvas.savePaintingToCloud(
                 locationId: locationId,
                 questionId: questionId,
-                userId: userId
+                userId: finalUserId
             )
-            print("✅ 绘画数据保存完成")
+            print("✅ 绘画数据保存完成，用户ID: \(finalUserId ?? -1)")
             
         } catch {
             print("❌ 画作保存到云端失败: \(error.localizedDescription)")

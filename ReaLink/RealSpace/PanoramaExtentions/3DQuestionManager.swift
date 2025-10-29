@@ -15,7 +15,12 @@ extension BasicPanoramaView {
         isLoadingQuestions = true
         
         do {
+            // ✅ 修改：使用动态获取的 location_id
             let locationId: Int64 = getCurrentLocationId()
+            
+            // ✅ 添加日志：显示当前使用的 location_id
+            print("🔍【当前Location ID】: \(locationId)")
+            print("🔍【当前Location Title】: \(vrManager.currentLocationTitle)")
             
             let view3DResponse = try await NetworkManager.shared.get3DViewIdByLocation(locationId: locationId)
             
@@ -53,16 +58,33 @@ extension BasicPanoramaView {
         }
     }
     
+    // ✅ 修改：动态获取 location_id
     func getCurrentLocationId() -> Int64 {
+        // 优先使用 vrManager 中存储的 location_id
+        let locationId = vrManager.currentLocationId
+        
+        if locationId > 0 {
+            print("✅【使用存储的Location ID】: \(locationId)")
+            return locationId
+        }
+        
+        // 作为后备方案，尝试从 title 推断（向后兼容）
         let currentTitle = vrManager.currentLocationTitle
+        
+        print("⚠️【未设置Location ID，尝试从标题推断】: \(currentTitle)")
         
         switch currentTitle {
         case "华中农业大学博物馆":
             return 1
-        case "华中农业大学梧桐广场", "华中农业大学梧桐步行街":
+        case "华中农业大学梧桐广场", "华中农业大学梧桐步行街", "华中农业大学梧桐路步行街":
             return 2
+        case "狮子山广场":  // ✅ 添加 location_id=3 的支持
+            return 3
+        case "华中农业大学(西门)":  // ✅ 添加 location_id=4 的支持
+            return 4
         default:
-            return 2
+            print("⚠️【无法识别的位置】: \(currentTitle)")
+            return 0
         }
     }
     

@@ -267,11 +267,15 @@ struct TopToolbar: View {
                 
                 // 关闭按钮
                 Button(action: onClose) {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.title3)
+                    Image(systemName: "xmark")
+                        .font(.title2)
                         .foregroundColor(.secondary)
+                        .frame(width:64,height:64)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.borderedProminent)
+                .clipShape(Circle())
+                .buttonBorderShape(.circle)  // 添加圆形边框
+                .hoverEffect(.highlight)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)

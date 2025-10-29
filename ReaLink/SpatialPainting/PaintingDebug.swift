@@ -386,7 +386,7 @@ struct BrushControlWindow: View {
                 Button(action: {
                     dismissWindow(id: "BrushControlWindow")
                 }) {
-                    Image(systemName: "xmark.circle.fill")
+                    Image(systemName: "xmark")
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)

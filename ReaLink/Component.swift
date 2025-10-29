@@ -237,13 +237,16 @@ struct QuestionDetailModal: View
 
                 Button(action: onClose)
                 {
-                    Image(systemName: "xmark.circle.fill")
-                        .clipShape(Circle())
+                    Image(systemName: "xmark")
+                        
                         .font(.title)
                         .foregroundColor(.secondary)
-                        .buttonBorderShape(.circle)  // 添加这个
+                        .frame(width: 64, height: 64)  // 改大按钮尺寸
+                        
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.borderedProminent)
+                .clipShape(Circle())
+                .buttonBorderShape(.circle)  // 添加这个
                 .hoverEffect(.highlight)
             }
 
@@ -1830,10 +1833,14 @@ struct AddressSearchField: View
                         isSearching = false
                     })
                     {
-                        Image(systemName: "xmark.circle.fill")
+                        Image(systemName: "xmark")
                             .foregroundColor(.secondary)
+                            .frame(width: 64,height: 64)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.borderedProminent)
+                    .clipShape(Circle())
+                    .buttonBorderShape(.circle)  // 添加圆形边框
+                    .hoverEffect(.highlight)
                 }
 
                 // 加载指示器
@@ -2170,3 +2177,4 @@ struct ColorButton: View
         .buttonStyle(.plain)
     }
 }
+

@@ -217,26 +217,43 @@ extension PaintingCanvas {
 /// 保存所有笔画到云端（只保存当前用户）
 func savePaintingToCloud(locationId: Int64? = nil, questionId: Int64? = nil, userId: Int64? = nil) async throws {
     print("🎨 开始保存画作到云端...")
+    print("   📍 locationId: \(locationId ?? -1), questionId: \(questionId ?? -1), userId: \(userId ?? -1)")
+    
+    // 🔥 检查userId是否有效
+    guard let validUserId = userId, validUserId > 0 else {
+        print("❌ 保存失败：无效的用户ID")
+        await MainActor.run {
+            NotificationCenter.default.post(
+                name: NSNotification.Name("CloudOperationResult"),
+                object: nil,
+                userInfo: ["success": false, "message": "保存失败：无效的用户ID"]
+            )
+        }
+        return
+    }
     
     // 🔥 只保存当前用户的笔画
     var strokesData: [SerializableStroke] = []
     
     // 从保存的笔画数据中筛选当前用户的笔画
     for stroke in finishedStrokeData {
-        if stroke.userId == userId {
+        if stroke.userId == validUserId {
             let serializableStroke = SerializableStroke(from: stroke)
             strokesData.append(serializableStroke)
         }
     }
     
     // 如果当前还有正在绘制的笔画，且是当前用户的，也包含进去
-    if let currentStroke = currentStroke, currentStroke.userId == userId {
+    if let currentStroke = currentStroke, currentStroke.userId == validUserId {
         let serializableStroke = SerializableStroke(from: currentStroke)
         strokesData.append(serializableStroke)
     }
     
+    print("   📦 找到 \(strokesData.count) 个笔画属于用户 \(validUserId)")
+    print("   📊 总笔画数: \(finishedStrokeData.count + (currentStroke != nil ? 1 : 0))")
+    
     guard !strokesData.isEmpty else {
-        print("⚠️ 没有笔画数据可以保存（用户ID: \(userId ?? -1)）")
+        print("⚠️ 没有笔画数据可以保存（用户ID: \(validUserId)）")
         await MainActor.run {
             NotificationCenter.default.post(
                 name: NSNotification.Name("CloudOperationResult"),

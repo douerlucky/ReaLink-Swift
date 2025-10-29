@@ -206,12 +206,15 @@ struct ModelTypePickerView: View
                         dismiss()
                     })
                     {
-                        Image(systemName: "xmark.circle.fill")
+                        Image(systemName: "xmark")
                             .font(.title2)
                             .foregroundStyle(.secondary)
                             .symbolRenderingMode(.hierarchical)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(.borderedProminent)
+                    .clipShape(Circle())
+                    .buttonBorderShape(.circle)  // 添加圆形边框
+                    .hoverEffect(.highlight)
                 }
             }
         }
