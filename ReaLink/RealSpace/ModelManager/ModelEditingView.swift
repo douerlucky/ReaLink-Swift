@@ -206,12 +206,20 @@ struct ModelSelectionSection: View
 
         isAddingModel = true
 
-        // 🔥 修复：Sign模型使用默认brown，其他模型使用当前选择的颜色
+        // 🔥 修复：为不同模型设置默认颜色和透明度
         let finalColor: Color
+        let finalOpacity: Float
+        
         if modelManager.selectedModelType == .sign {
             finalColor = .brown
+            finalOpacity = modelManager.modelOpacity
+        } else if modelManager.selectedModelType == .chatBubble {
+            // ✅ chatBubble 默认淡蓝色70%透明
+            finalColor = Color(red: 0.5, green: 0.7, blue: 1.0)  // 淡蓝色
+            finalOpacity = 0.3  // 70%透明 = 30%不透明度
         } else {
             finalColor = modelManager.cubeColor
+            finalOpacity = modelManager.modelOpacity
         }
         
         let colorComponents = finalColor.cgColor?.components ?? [0, 0, 1, 1]
@@ -224,7 +232,7 @@ struct ModelSelectionSection: View
                 "alpha": Float(colorComponents.count > 3 ? colorComponents[3] : 1.0),
             ],
             "size": modelManager.cubeSize,
-            "opacity": modelManager.modelOpacity,
+            "opacity": finalOpacity,
         ]
 
         NotificationCenter.default.post(
@@ -256,12 +264,20 @@ struct ModelSelectionSection: View
 
         isAddingModel = true
 
-        // 🔥 修复：Sign模型使用默认brown，其他模型使用当前选择的颜色
+        // 🔥 修复：为不同模型设置默认颜色和透明度
         let finalColor: Color
+        let finalOpacity: Float
+        
         if modelManager.selectedModelType == .sign {
             finalColor = .brown
+            finalOpacity = modelManager.modelOpacity
+        } else if modelManager.selectedModelType == .chatBubble {
+            // ✅ chatBubble 默认淡蓝色70%透明
+            finalColor = Color(red: 0.5, green: 0.7, blue: 1.0)  // 淡蓝色
+            finalOpacity = 0.3  // 70%透明 = 30%不透明度
         } else {
             finalColor = modelManager.cubeColor
+            finalOpacity = modelManager.modelOpacity
         }
         
         let colorComponents = finalColor.cgColor?.components ?? [0, 0, 1, 1]
@@ -274,7 +290,7 @@ struct ModelSelectionSection: View
                 "alpha": Float(colorComponents.count > 3 ? colorComponents[3] : 1.0),
             ],
             "size": modelManager.cubeSize,
-            "opacity": modelManager.modelOpacity,
+            "opacity": finalOpacity,
         ]
 
         // 🌟 发送附着到手上的通知
@@ -318,6 +334,19 @@ struct ModelSelectionSection: View
         case .cone: return "锥体"
         case .capsule: return "胶囊"
         case .sign: return "告示牌"
+        case .chatBubble: return "气泡"
+        case .smileEmoji: return "微笑😊"
+        case .stareyesEmoji: return "星星眼🤩"
+        case .sadEmoji: return "伤心😢"
+        case .questionEmoji: return "疑问❓"
+        case .celebrateEmoji: return "庆祝🎉"
+        case .poopEmoji: return "便便💩"
+        case .smileEmoji: return "微笑😊"
+        case .stareyesEmoji: return "星星眼🤩"
+        case .sadEmoji: return "伤心😢"
+        case .questionEmoji: return "疑问❓"
+        case .celebrateEmoji: return "庆祝🎉"
+        case .poopEmoji: return "便便💩"
         }
     }
 }
@@ -405,10 +434,11 @@ struct EditableModelInterface: View
             .background(.green.opacity(0.1))
             .cornerRadius(8)
 
-            // 颜色修改区域
-            if selectedModel.type == .sign
+            // 编辑区域 - 根据模型是否支持文本输入来决定显示哪个界面
+            if selectedModel.supportsTextInput()
             {
-                SignModelEditInterface(
+                // ✅ 所有支持文本输入的模型（sign、chatBubble等）
+                TextInputModelEditInterface(
                     selectedModel: selectedModel,
                     selectedModelText: $selectedModelText,
                     modelRotationX: $modelRotationX,
@@ -418,6 +448,7 @@ struct EditableModelInterface: View
             }
             else
             {
+                // 通用模型编辑界面（立方体、球体等）
                 GeneralModelEditInterface(
                     selectedModel: selectedModel,
                     editModelColor: $editModelColor,
@@ -576,13 +607,20 @@ struct EditableModelInterface: View
         case .cone: return "锥体"
         case .capsule: return "胶囊"
         case .sign: return "告示牌"
+        case .chatBubble: return "气泡"
+        case .smileEmoji: return "微笑😊"
+        case .stareyesEmoji: return "星星眼🤩"
+        case .sadEmoji: return "伤心😢"
+        case .questionEmoji: return "疑问❓"
+        case .celebrateEmoji: return "庆祝🎉"
+        case .poopEmoji: return "便便💩"
         }
     }
 }
 
-// MARK: - Sign模型专用编辑界面
+// MARK: - 支持文本输入的模型编辑界面（Sign、ChatBubble等）
 
-struct SignModelEditInterface: View
+struct TextInputModelEditInterface: View
 {
     let selectedModel: PlacedModel
     @Binding var selectedModelText: String
@@ -597,7 +635,7 @@ struct SignModelEditInterface: View
             // 文本输入区域
             VStack(alignment: .leading, spacing: 8)
             {
-                Text("告示牌文字")
+                Text(getTextInputLabel())
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
 
@@ -606,14 +644,14 @@ struct SignModelEditInterface: View
                     .font(.body)
                     .onChange(of: selectedModelText)
                     { newText in
-                        updateSignModelText(selectedModel, newText: newText)
+                        updateModelText(selectedModel, newText: newText)
                     }
                     .onAppear
                     {
                         selectedModelText = selectedModel.text ?? ""
                     }
 
-                Text("提示:文字会显示在告示牌的中央位置")
+                Text(getTextInputHint())
                     .font(.caption2)
                     .foregroundColor(.secondary)
             }
@@ -621,28 +659,31 @@ struct SignModelEditInterface: View
             .background(.blue.opacity(0.05))
             .cornerRadius(8)
 
-            // 显示默认材质信息
-            VStack(alignment: .leading, spacing: 8)
+            // 显示材质信息（根据模型类型）
+            if !selectedModel.allowsColorCustomization()
             {
-                Text("材质设置")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-
-                HStack
+                VStack(alignment: .leading, spacing: 8)
                 {
-                    Image(systemName: "paintbrush.pointed.fill")
-                        .foregroundColor(.brown)
-                    Text("使用默认木质材质")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    Spacer()
-                    Image(systemName: "lock.fill")
-                        .font(.caption2)
-                        .foregroundColor(.orange)
+                    Text("材质设置")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+
+                    HStack
+                    {
+                        Image(systemName: getMaterialIcon())
+                            .foregroundColor(getMaterialColor())
+                        Text(getMaterialDescription())
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Image(systemName: "lock.fill")
+                            .font(.caption2)
+                            .foregroundColor(.orange)
+                    }
+                    .padding(8)
+                    .background(.orange.opacity(0.1))
+                    .cornerRadius(6)
                 }
-                .padding(8)
-                .background(.orange.opacity(0.1))
-                .cornerRadius(6)
             }
 
             // XYZ旋转控制区域
@@ -655,9 +696,69 @@ struct SignModelEditInterface: View
         }
     }
     
-    private func updateSignModelText(_ model: PlacedModel, newText: String)
+    // ✅ 根据模型类型返回文本输入标签
+    private func getTextInputLabel() -> String {
+        switch selectedModel.type {
+        case .sign:
+            return "告示牌文字"
+        case .chatBubble:
+            return "气泡文字"
+        default:
+            return "模型文字"
+        }
+    }
+    
+    // ✅ 根据模型类型返回提示文本
+    private func getTextInputHint() -> String {
+        switch selectedModel.type {
+        case .sign:
+            return "提示:文字会显示在告示牌的中央位置"
+        case .chatBubble:
+            return "提示:文字会显示在气泡的中央位置"
+        default:
+            return "提示:文字会显示在模型上"
+        }
+    }
+    
+    // ✅ 根据模型类型返回材质图标
+    private func getMaterialIcon() -> String {
+        switch selectedModel.type {
+        case .sign:
+            return "paintbrush.pointed.fill"
+        case .chatBubble:
+            return "sparkles"
+        default:
+            return "paintbrush.fill"
+        }
+    }
+    
+    // ✅ 根据模型类型返回材质颜色
+    private func getMaterialColor() -> Color {
+        switch selectedModel.type {
+        case .sign:
+            return .brown
+        case .chatBubble:
+            return .blue
+        default:
+            return .gray
+        }
+    }
+    
+    // ✅ 根据模型类型返回材质描述
+    private func getMaterialDescription() -> String {
+        switch selectedModel.type {
+        case .sign:
+            return "使用默认木质材质"
+        case .chatBubble:
+            return "使用默认淡蓝色半透明材质"
+        default:
+            return "使用默认材质"
+        }
+    }
+    
+    private func updateModelText(_ model: PlacedModel, newText: String)
     {
-        print("RealityWindow: 更新Sign模型文字 \(model.id) -> \(newText)")
+        print("RealityWindow: 更新模型文字 \(model.id) -> \(newText)")
 
         let userInfo: [String: Any] = [
             "action": "updateText",
@@ -690,58 +791,111 @@ struct GeneralModelEditInterface: View
     
     var body: some View
     {
-        HStack(alignment: .top, spacing: 16)
+        VStack(alignment: .leading, spacing: 12)
         {
-            // 颜色修改区域
-            VStack(alignment: .leading, spacing: 8)
+            // ✅ 关键修改：检查是否允许颜色自定义
+            if selectedModel.allowsColorCustomization()
             {
-                Text("颜色")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                // 允许自定义颜色的模型：显示颜色选择器
+                HStack(alignment: .top, spacing: 16)
+                {
+                    // 颜色修改区域
+                    VStack(alignment: .leading, spacing: 8)
+                    {
+                        Text("颜色")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
 
-                ColorPicker("", selection: $editModelColor, supportsOpacity: false)
-                    .labelsHidden()
-                    .frame(width: 120, height: 120)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(editModelColor)
+                        ColorPicker("", selection: $editModelColor, supportsOpacity: false)
+                            .labelsHidden()
+                            .frame(width: 120, height: 120)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(editModelColor)
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(Color.primary.opacity(0.3), lineWidth: 2)
+                            )
+                            .onChange(of: editModelColor)
+                            { oldColor, newColor in
+                                // 🔥 关键修复：检查颜色是否真的改变了
+                                // 避免在模型切换时触发
+                                if let last = lastColor, colorsAreEqual(last, newColor) {
+                                    print("⏭️ 颜色未实际改变，跳过更新")
+                                    return
+                                }
+                                
+                                // 🔥 延迟执行，让模型切换的标志位有时间生效
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                                    // 再次检查，确保不是在模型切换过程中
+                                    if self.editModelColor == newColor {
+                                        print("🎨 用户主动修改颜色: \(selectedModel.id.uuidString.prefix(8))")
+                                        handleModelColorChange(selectedModel, newColor: newColor)
+                                        lastColor = newColor
+                                    }
+                                }
+                            }
+                            .onAppear {
+                                // 初始化时记录颜色
+                                lastColor = editModelColor
+                            }
+                    }
+
+                    // XYZ旋转控制区域
+                    RotationControlInterface(
+                        selectedModel: selectedModel,
+                        modelRotationX: $modelRotationX,
+                        modelRotationY: $modelRotationY,
+                        modelRotationZ: $modelRotationZ
                     )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.primary.opacity(0.3), lineWidth: 2)
-                    )
-                    .onChange(of: editModelColor)
-                    { oldColor, newColor in
-                        // 🔥 关键修复：检查颜色是否真的改变了
-                        // 避免在模型切换时触发
-                        if let last = lastColor, colorsAreEqual(last, newColor) {
-                            print("⏭️ 颜色未实际改变，跳过更新")
-                            return
+                }
+            }
+            else
+            {
+                // ✅ 不允许颜色自定义的模型：显示锁定提示
+                VStack(alignment: .leading, spacing: 8)
+                {
+                    Text("材质设置")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+
+                    HStack
+                    {
+                        Image(systemName: getMaterialIcon())
+                            .foregroundColor(getMaterialColor())
+                            .font(.title2)
+                        
+                        VStack(alignment: .leading, spacing: 4)
+                        {
+                            Text(getMaterialDescription())
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            
+                            Text("该模型使用原始材质，颜色已锁定")
+                                .font(.caption2)
+                                .foregroundColor(.orange)
                         }
                         
-                        // 🔥 延迟执行，让模型切换的标志位有时间生效
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                            // 再次检查，确保不是在模型切换过程中
-                            if self.editModelColor == newColor {
-                                print("🎨 用户主动修改颜色: \(selectedModel.id.uuidString.prefix(8))")
-                                handleModelColorChange(selectedModel, newColor: newColor)
-                                lastColor = newColor
-                            }
-                        }
+                        Spacer()
+                        
+                        Image(systemName: "lock.fill")
+                            .font(.title3)
+                            .foregroundColor(.orange)
                     }
-                    .onAppear {
-                        // 初始化时记录颜色
-                        lastColor = editModelColor
-                    }
+                    .padding(12)
+                    .background(.orange.opacity(0.1))
+                    .cornerRadius(8)
+                }
+                
+                // XYZ旋转控制区域（没有颜色选择器，旋转控制占满宽度）
+                RotationControlInterface(
+                    selectedModel: selectedModel,
+                    modelRotationX: $modelRotationX,
+                    modelRotationY: $modelRotationY,
+                    modelRotationZ: $modelRotationZ
+                )
             }
-
-            // XYZ旋转控制区域
-            RotationControlInterface(
-                selectedModel: selectedModel,
-                modelRotationX: $modelRotationX,
-                modelRotationY: $modelRotationY,
-                modelRotationZ: $modelRotationZ
-            )
         }
     }
     
@@ -758,6 +912,68 @@ struct GeneralModelEditInterface: View
         return abs(components1[0] - components2[0]) < threshold &&
                abs(components1[1] - components2[1]) < threshold &&
                abs(components1[2] - components2[2]) < threshold
+    }
+    
+    // ✅ 根据模型类型返回材质图标
+    private func getMaterialIcon() -> String {
+        switch selectedModel.type {
+        case .sign:
+            return "paintbrush.pointed.fill"
+        case .chatBubble:
+            return "sparkles"
+        case .smileEmoji, .stareyesEmoji, .sadEmoji, .questionEmoji, .celebrateEmoji, .poopEmoji:
+            return "face.smiling"
+        default:
+            return "paintbrush.fill"
+        }
+    }
+    
+    // ✅ 根据模型类型返回材质颜色
+    private func getMaterialColor() -> Color {
+        switch selectedModel.type {
+        case .sign:
+            return .brown
+        case .chatBubble:
+            return .blue
+        case .smileEmoji:
+            return .yellow
+        case .stareyesEmoji:
+            return .orange
+        case .sadEmoji:
+            return .blue
+        case .questionEmoji:
+            return .gray
+        case .celebrateEmoji:
+            return .red
+        case .poopEmoji:
+            return .brown
+        default:
+            return .gray
+        }
+    }
+    
+    // ✅ 根据模型类型返回材质描述
+    private func getMaterialDescription() -> String {
+        switch selectedModel.type {
+        case .sign:
+            return "使用默认木质材质"
+        case .chatBubble:
+            return "使用默认淡蓝色半透明材质"
+        case .smileEmoji:
+            return "微笑表情原始材质"
+        case .stareyesEmoji:
+            return "星星眼表情原始材质"
+        case .sadEmoji:
+            return "伤心表情原始材质"
+        case .questionEmoji:
+            return "疑问表情原始材质"
+        case .celebrateEmoji:
+            return "庆祝表情原始材质"
+        case .poopEmoji:
+            return "便便表情原始材质"
+        default:
+            return "使用默认材质"
+        }
     }
     
     private func handleModelColorChange(_ model: PlacedModel, newColor: Color)
@@ -1032,6 +1248,13 @@ struct NoPermissionModelInterface: View
         case .cone: return "锥体"
         case .capsule: return "胶囊"
         case .sign: return "告示牌"
+        case .chatBubble: return "气泡"
+        case .smileEmoji: return "微笑😊"
+        case .stareyesEmoji: return "星星眼🤩"
+        case .sadEmoji: return "伤心😢"
+        case .questionEmoji: return "疑问❓"
+        case .celebrateEmoji: return "庆祝🎉"
+        case .poopEmoji: return "便便💩"
         }
     }
 }

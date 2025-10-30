@@ -208,36 +208,9 @@ extension AIAssistantWindow {
                 // 2. 转换为全景图坐标
                 let panoramaRegion = converter.convertSelectionToPanoramaRegion(region)
                 
-                // 🔥 发送可视化通知
-                print("🎨【发送可视化通知 - 点击发送按钮后】")
-                
-                let finalMinU = Float(panoramaRegion.topLeft.x) / 8704.0
-                let finalMaxU = Float(panoramaRegion.bottomRight.x) / 8704.0
-                let finalMinV = Float(panoramaRegion.topLeft.y) / 4352.0
-                let finalMaxV = Float(panoramaRegion.bottomRight.y) / 4352.0
-                
-                let finalAzimuthStart = (finalMinU - 0.5) * 2.0 * Float.pi
-                let finalAzimuthEnd = (finalMaxU - 0.5) * 2.0 * Float.pi
-                let finalElevationTop = (0.5 - finalMinV) * Float.pi
-                let finalElevationBottom = (0.5 - finalMaxV) * Float.pi
-                
-                print("   🌐 球面坐标:")
-                print("      方位角: \(String(format: "%.1f", finalAzimuthStart * 180.0 / Float.pi))° → \(String(format: "%.1f", finalAzimuthEnd * 180.0 / Float.pi))°")
-                print("      仰角: \(String(format: "%.1f", finalElevationTop * 180.0 / Float.pi))° → \(String(format: "%.1f", finalElevationBottom * 180.0 / Float.pi))°")
-                
-                NotificationCenter.default.post(
-                    name: NSNotification.Name("ShowFittedSphericalRegion"),
-                    object: nil,
-                    userInfo: [
-                        "fittedPoints": region.trackedPoints,
-                        "radius": 10.0,
-                        "azimuthRange": [finalAzimuthStart, finalAzimuthEnd],
-                        "elevationRange": [finalElevationTop, finalElevationBottom],
-                        "averageY": region.trackedPoints.map { $0.y }.reduce(0, +) / Float(region.trackedPoints.count),
-                        "pixelRegion": panoramaRegion
-                    ]
-                )
-                print("   ✅ 已发送可视化通知（基于最终像素坐标）")
+                // ✅ 注意：convertSelectionToPanoramaRegion() 内部已经发送了可视化通知
+                // 格式完整，包含 isWrapping、segment1Azimuth、segment2Azimuth 等参数
+                // 不需要重复发送！
                 
                 // 3. 🔥 获取当前位置ID和问题ID
                 guard let locationId = await getLocationIdFromContext() else {
@@ -319,32 +292,9 @@ extension AIAssistantWindow {
                 )
                 let panoramaRegion = converter.convertSelectionToPanoramaRegion(region)
                 
-                // 🔥 发送可视化通知
-                print("🎨【发送可视化通知 - 自定义提示词发送】")
-                
-                let finalMinU = Float(panoramaRegion.topLeft.x) / 8704.0
-                let finalMaxU = Float(panoramaRegion.bottomRight.x) / 8704.0
-                let finalMinV = Float(panoramaRegion.topLeft.y) / 4352.0
-                let finalMaxV = Float(panoramaRegion.bottomRight.y) / 4352.0
-                
-                let finalAzimuthStart = (finalMinU - 0.5) * 2.0 * Float.pi
-                let finalAzimuthEnd = (finalMaxU - 0.5) * 2.0 * Float.pi
-                let finalElevationTop = (0.5 - finalMinV) * Float.pi
-                let finalElevationBottom = (0.5 - finalMaxV) * Float.pi
-                
-                NotificationCenter.default.post(
-                    name: NSNotification.Name("ShowFittedSphericalRegion"),
-                    object: nil,
-                    userInfo: [
-                        "fittedPoints": region.trackedPoints,
-                        "radius": 10.0,
-                        "azimuthRange": [finalAzimuthStart, finalAzimuthEnd],
-                        "elevationRange": [finalElevationTop, finalElevationBottom],
-                        "averageY": region.trackedPoints.map { $0.y }.reduce(0, +) / Float(region.trackedPoints.count),
-                        "pixelRegion": panoramaRegion
-                    ]
-                )
-                print("   ✅ 已发送可视化通知")
+                // ✅ 注意：convertSelectionToPanoramaRegion() 内部已经发送了可视化通知
+                // 格式完整，包含 isWrapping、segment1Azimuth、segment2Azimuth 等参数
+                // 不需要重复发送！
                 
                 // 2. 🔥 获取位置ID和问题ID
                 guard let locationId = await getLocationIdFromContext() else {
@@ -391,30 +341,77 @@ extension AIAssistantWindow {
         }
     }
 
-    // 🔥 获取位置ID的方法（需要你根据实际情况实现）
+    // 🔥 增强版：获取位置ID的方法（多重容错）
     private func getLocationIdFromContext() async -> Int64? {
-        // 🔥 TODO: 从你的应用上下文中获取当前位置ID
-        // 例如：从 VRManager、SceneManager 或其他管理器中获取
+        // 方法1：从 SceneManager 获取当前真实的 location_id
+        if let currentLocationId = SceneManager.shared?.currentLocationId, currentLocationId > 0 {
+            print("✅【获取位置ID】从SceneManager: \(currentLocationId)")
+            return Int64(currentLocationId)
+        }
         
-        // 示例实现（需要替换为实际逻辑）：
-        // if let currentLocation = SceneManager.shared.currentLocation {
-        //     return Int64(currentLocation.id)
-        // }
+        // 方法2：从 VRSessionManager 获取
+        let vrLocationId = await VRSessionManager.shared.currentLocationId
+        if vrLocationId > 0 {
+            print("✅【获取位置ID】从VRSessionManager: \(vrLocationId)")
+            
+            // 同步更新 SceneManager（保持一致性）
+            SceneManager.shared?.currentLocationId = vrLocationId
+            
+            return vrLocationId
+        }
         
-        // 临时返回测试值
-        return 1
+        // 方法3：尝试从 VRManager 的 URL 中解析
+        let panoramaURL = await VRSessionManager.shared.panoramaImageURL
+        if !panoramaURL.isEmpty, let extractedId = extractLocationIdFromURL(panoramaURL) {
+            print("✅【获取位置ID】从URL解析: \(extractedId)")
+            
+            // 同步更新管理器（保持一致性）
+            SceneManager.shared?.currentLocationId = extractedId
+            await MainActor.run {
+                VRSessionManager.shared.currentLocationId = extractedId
+            }
+            
+            return extractedId
+        }
+        
+        print("⚠️【获取位置ID】所有方法都失败，返回nil")
+        print("   - SceneManager.currentLocationId: \(SceneManager.shared?.currentLocationId ?? -1)")
+        print("   - VRSessionManager.currentLocationId: \(vrLocationId)")
+        print("   - VRSessionManager.panoramaImageURL: \(panoramaURL)")
+        return nil
     }
     
-    // 🔥 新增：获取问题ID的方法（需要你根据实际情况实现）
+    // 🔥 新增：从URL中提取 locationId 的辅助方法
+    private func extractLocationIdFromURL(_ url: String) -> Int64? {
+        let pattern = "location_(\\d+)"
+        
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
+            return nil
+        }
+        
+        let nsString = url as NSString
+        let results = regex.matches(in: url, options: [], range: NSRange(location: 0, length: nsString.length))
+        
+        if let match = results.first, match.numberOfRanges > 1 {
+            let locationIdRange = match.range(at: 1)
+            let locationIdString = nsString.substring(with: locationIdRange)
+            return Int64(locationIdString)
+        }
+        
+        return nil
+    }
+    
+    // 🔥 实现：获取问题ID的方法（从TargetQuesitonManager）
     private func getQuestionIdFromContext() async -> Int64? {
-        // 🔥 TODO: 从你的应用上下文中获取当前问题ID
-        // 例如：从 TargetQuestionManager 中获取
+        // 从 TargetQuesitonManager 获取当前问题
+        let currentQuestion = await TargetQuesitonManager.shared.currentQuestion
         
-        // 示例实现（需要替换为实际逻辑）：
-        // if let currentQuestion = TargetQuestionManager.shared.currentQuestion {
-        //     return Int64(currentQuestion.id)
-        // }
+        if currentQuestion.id > 0 {
+            print("✅【获取问题ID】从TargetQuesitonManager: \(currentQuestion.id)")
+            return Int64(currentQuestion.id)
+        }
         
-        return nil  // 如果没有关联问题，返回nil
+        print("ℹ️【获取问题ID】当前没有关联的问题")
+        return nil
     }
 }

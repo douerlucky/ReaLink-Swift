@@ -230,6 +230,14 @@ struct ModelTypePickerView: View
         case .cone: return "锥体"
         case .capsule: return "胶囊"
         case .sign: return "告示牌"
+        case .chatBubble: return "气泡"
+        // ✅ 新增：Emoji 模型的显示名称
+        case .smileEmoji: return "微笑😊"
+        case .stareyesEmoji: return "星星眼🤩"
+        case .sadEmoji: return "伤心😢"
+        case .questionEmoji: return "疑问❓"
+        case .celebrateEmoji: return "庆祝🎉"
+        case .poopEmoji: return "便便💩"
         }
     }
 }
@@ -342,6 +350,14 @@ struct ModelTypePickerView_modle: View
         case .cone: return "cone.fill"
         case .capsule: return "capsule.fill"
         case .sign: return "signpost.right.fill"
+        case .chatBubble: return "chat.fill"
+        // ✅ 新增：Emoji 模型图标
+        case .smileEmoji: return "face.smiling"
+        case .stareyesEmoji: return "star.fill"
+        case .sadEmoji: return "face.dashed"
+        case .questionEmoji: return "questionmark.circle"
+        case .celebrateEmoji: return "party.popper"
+        case .poopEmoji: return "allergens"
         }
     }
 
@@ -355,6 +371,14 @@ struct ModelTypePickerView_modle: View
         case .cone: return "锥体"
         case .capsule: return "胶囊"
         case .sign: return "告示牌"
+        case .chatBubble: return "气泡"
+        // ✅ 新增：Emoji 模型的显示名称
+        case .smileEmoji: return "微笑😊"
+        case .stareyesEmoji: return "星星眼🤩"
+        case .sadEmoji: return "伤心😢"
+        case .questionEmoji: return "疑问❓"
+        case .celebrateEmoji: return "庆祝🎉"
+        case .poopEmoji: return "便便💩"
         }
     }
 }

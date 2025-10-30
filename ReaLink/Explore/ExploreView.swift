@@ -86,6 +86,8 @@ struct ExploreView: View
     // 🔧 添加防护标志
     @State private var hasInitializedLocation = false
     @State private var isViewActive = false
+    
+    @State private var isUpdatingMapCenter = false
 
     // 默认位置（作为后备）
     private let defaultLocation = CLLocationCoordinate2D(
@@ -176,27 +178,37 @@ struct ExploreView: View
             VStack
             {
                 ExploreMapView(
-                    mapItemsWithColors: mapItemsWithColors,
-                    targetCenter: shouldUpdateMapCenter ? targetMapCenter : nil,
-                    regionSpan: $regionSpan,
-                    selectedMapItem: $selectedMapItem,
-                    updateTrigger: mapUpdateTrigger,
-                    enableSelection: !isLoading,
-                    centerOffset: 300,
-                    showPopup: $showLocationDetail,
-                    hideOtherMarkers: hideOtherMarkers, // ✅ 传递状态
-                    onAnnotationSelected: { mapItem in
-                        handleAnnotationSelected(mapItem)
-                    },
-                    onRegionChange: { center, span in
-                        handleMapRegionChange(center: center, span: span)
-                    },
-                    onMapCenterUpdated: {
-                        shouldUpdateMapCenter = false
-                        targetMapCenter = nil
-                    },
-                    shouldDeselectAnnotation: shouldDeselectAnnotation
-                )
+                                mapItemsWithColors: mapItemsWithColors,
+                                // 🔧 修改这一行 ↓ 添加 !isUpdatingMapCenter 检查
+                                targetCenter: (shouldUpdateMapCenter && !isUpdatingMapCenter) ? targetMapCenter : nil,
+                                regionSpan: $regionSpan,
+                                selectedMapItem: $selectedMapItem,
+                                updateTrigger: mapUpdateTrigger,
+                                enableSelection: !isLoading,
+                                centerOffset: 300,
+                                showPopup: $showLocationDetail,
+                                hideOtherMarkers: hideOtherMarkers,
+                                onAnnotationSelected: { mapItem in
+                                    handleAnnotationSelected(mapItem)
+                                },
+                                onRegionChange: { center, span in
+                                    handleMapRegionChange(center: center, span: span)
+                                },
+                                // 🔧 修改这个回调 ↓
+                                onMapCenterUpdated: {
+                                    // 先锁定更新标志
+                                    self.isUpdatingMapCenter = true
+                                    // 清除更新状态
+                                    self.shouldUpdateMapCenter = false
+                                    self.targetMapCenter = nil
+                                    
+                                    // 延迟解锁，防止立即重新触发
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                        self.isUpdatingMapCenter = false
+                                    }
+                                },
+                                shouldDeselectAnnotation: shouldDeselectAnnotation
+                            )
                 .onAppear
                 {
                     // 🔧 只在首次加载时获取位置
@@ -696,43 +708,44 @@ struct ExploreMapView: UIViewRepresentable
         return mapView
     }
 
-    func updateUIView(_ view: MKMapView, context: Context)
-    {
-        print("更新地图视图")
-
-        // 处理取消选择标注
-        if shouldDeselectAnnotation
-        {
-            let selectedAnnotations = view.selectedAnnotations
-            for annotation in selectedAnnotations
-            {
-                if !(annotation is MKUserLocation)
-                {
-                    view.deselectAnnotation(annotation, animated: false)
-                    print("取消标注选择: \(String(describing: annotation.title ?? "未知"))")
+    func updateUIView(_ view: MKMapView, context: Context) {
+            print("更新地图视图")
+            
+            // 处理取消选择标注
+            if shouldDeselectAnnotation {
+                let selectedAnnotations = view.selectedAnnotations
+                for annotation in selectedAnnotations {
+                    if !(annotation is MKUserLocation) {
+                        view.deselectAnnotation(annotation, animated: false)
+                        print("取消标注选择: \(String(describing: annotation.title ?? "未知"))")
+                    }
                 }
             }
-        }
-
-        // 只在明确需要时更新目标中心点
-        if let targetCenter = targetCenter
-        {
-            print("🗺️ 设置目标中心点: \(targetCenter)")
-            let region = MKCoordinateRegion(
-                center: targetCenter,
-                latitudinalMeters: regionSpan,
-                longitudinalMeters: regionSpan
-            )
-            view.setRegion(region, animated: true)
-
-            DispatchQueue.main.async
-            {
-                self.onMapCenterUpdated?()
+            
+            // 🔧 核心修复：先清除状态，再更新地图
+            if let targetCenter = targetCenter {
+                print("🗺️ 设置目标中心点: \(targetCenter)")
+                
+                // 🔧 关键修改：立即同步调用回调清除状态
+                // ❌ 原来的代码（会导致死循环）：
+                // DispatchQueue.main.async {
+                //     self.onMapCenterUpdated?()
+                // }
+                
+                // ✅ 修改为直接调用：
+                onMapCenterUpdated?()
+                
+                // 然后再设置地图区域
+                let region = MKCoordinateRegion(
+                    center: targetCenter,
+                    latitudinalMeters: regionSpan,
+                    longitudinalMeters: regionSpan
+                )
+                view.setRegion(region, animated: true)
             }
-        }
-
-        // 获取当前已有的标注（除了用户位置）
-        let existingAnnotations = view.annotations.filter { !($0 is MKUserLocation) }
+            
+            // 获取当前已有的标注（除了用户位置）
+            let existingAnnotations = view.annotations.filter { !($0 is MKUserLocation) }
 
         // 创建新的标注数据映射
         let newAnnotationsData = mapItemsWithColors.map

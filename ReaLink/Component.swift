@@ -369,12 +369,11 @@ struct QuestionDetailModal: View
                                     endPoint: .bottomTrailing
                                 )
                             )
-                            .frame(width: 32, height: 32)
+                            .frame(width: 48, height: 48)
 
                         Image(systemName: "sparkles")
                             .font(.title3)
-                            .foregroundColor(.white)
-                            .frame(width: 64, height: 64)  // 改小按钮尺寸
+                            .frame(width: 48, height: 48)  // 改小按钮尺寸
                     }
                 }
                 .buttonStyle(.borderedProminent)
@@ -388,6 +387,7 @@ struct QuestionDetailModal: View
                     .lineLimit(1 ... 4)
                     .padding(.vertical, 8)
                     .padding(.horizontal, 12)
+                
                     .font(.system(size: isRealityEnvironment ? 24 : 16))
                     .textFieldStyle(.plain)
                     .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 32))
@@ -403,8 +403,10 @@ struct QuestionDetailModal: View
                             handleSendReply()
                         }
                     }
+                    
                     .disabled(isSendingReply)
                     .hoverEffect(.highlight)
+                    .frame(height: 48)  // 改小按钮尺寸
 
                 // 发送按钮
                 Button(action: handleSendReply)
@@ -413,14 +415,14 @@ struct QuestionDetailModal: View
                     {
                         ProgressView()
                             .scaleEffect(0.8)
-                            .frame(width: 64, height: 64)  // 改小按钮尺寸
+                            .frame(width: 48, height: 48)  // 改小按钮尺寸
                     }
                     else
                     {
                         Image(systemName: "paperplane.fill")
                             .font(.title3)
                             .foregroundColor(.white)
-                            .frame(width: 64, height: 64)  // 改小按钮尺寸
+                            .frame(width: 48, height: 48)  // 改小按钮尺寸
                     }
                 }
                 .buttonStyle(.borderedProminent)
@@ -432,26 +434,6 @@ struct QuestionDetailModal: View
                 .animation(isRealityEnvironment ? .easeInOut(duration: 0.2) : .none, value: isSendingReply)
                 .buttonBorderShape(.circle)  // 添加这个
             }
-
-            // 字数统计
-            HStack
-            {
-                Text("\(replyText.count)/1000")
-                    .font(.caption2)
-                    .foregroundColor(replyText.count > 1000 ? .red : .secondary)
-
-                Spacer()
-
-                if isSendingReply
-                {
-                    Text("正在发送...")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                }
-            }
-            .opacity(replyText.isEmpty && !isSendingReply ? 0 : 1)
-            .animation(.easeInOut(duration: 0.2), value: replyText.isEmpty)
-            .animation(.easeInOut(duration: 0.2), value: isSendingReply)
         }
     }
 
@@ -1833,9 +1815,9 @@ struct AddressSearchField: View
                         isSearching = false
                     })
                     {
-                        Image(systemName: "xmark")
+                        Image(systemName: "xmark.circle.fill")
                             .foregroundColor(.secondary)
-                            .frame(width: 64,height: 64)
+                            .frame(width: 20,height: 20)
                     }
                     .buttonStyle(.borderedProminent)
                     .clipShape(Circle())

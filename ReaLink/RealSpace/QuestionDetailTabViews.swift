@@ -170,6 +170,7 @@ struct SpatialPaintingTab: View
         {
             paintingBottomBar
                 .opacity(contentOpacity)
+                .id("painting_bottom_bar") // 🔥 添加稳定的 ID，避免重新创建
         }
     }
     
@@ -223,6 +224,12 @@ struct SpatialPaintingTab: View
             // 中间：空间绘画功能总开关（单独，居中）
             Button(action: {
                 brushManager.isPaintingEnabled.toggle()
+                
+                // ✅ 当关闭总开关时，同时关闭子开关
+                if !brushManager.isPaintingEnabled {
+                    brushManager.canUserDraw = false
+                }
+                
                 print("🎨 空间绘画模式切换: \(brushManager.isPaintingEnabled)")
             })
             {
@@ -231,94 +238,97 @@ struct SpatialPaintingTab: View
                     Image(systemName: brushManager.isPaintingEnabled ? "paintbrush.pointed.fill" : "paintbrush.pointed")
                         .font(.title3)
                     
-                    Text(brushManager.isPaintingEnabled ? "绘画中" : "未启用")
+                    Text(brushManager.isPaintingEnabled ? "已启用" : "未启用")
                         .font(.callout)
                         .fontWeight(.medium)
                 }
-                .frame(width: 156, height: 64)  // 改大按钮尺寸
+                .frame(width: 156, height: 64)
                 .foregroundColor(.white)
                 .padding(.horizontal, 16)
             }
             .buttonStyle(.borderedProminent)
             .tint(brushManager.isPaintingEnabled ? .green : .gray)
-            
             Spacer()
             
             // 右边：绘画开关、刷新、保存（超级紧凑！）
             HStack(spacing: 8)
             {
-                // 🔥 新增：绘画功能开关（控制是否可以捏合绘画）
                 Button(action: {
-                    brushManager.isPaintingEnabled.toggle()
-                    print("🎨 绘画功能切换: \(brushManager.isPaintingEnabled)")
+                    // ✅ 切换子开关：canUserDraw
+                    brushManager.canUserDraw.toggle()
+                    print("🎨 用户绘画权限切换: \(brushManager.canUserDraw)")
                 })
                 {
-                    Image(systemName: brushManager.isPaintingEnabled ? "hand.tap.fill" : "hand.tap")
+                    Image(systemName: brushManager.canUserDraw ? "hand.tap.fill" : "hand.tap")
                         .font(.title3)
                         .foregroundColor(.white)
                         .frame(width: 64, height: 64)
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(brushManager.isPaintingEnabled ? .green : .gray)
+                .tint(brushManager.canUserDraw ? .green : .gray)
                 .clipShape(Circle())
                 .buttonBorderShape(.circle)
+                .disabled(!brushManager.isPaintingEnabled)  // ✅ 只有总开关启用时才能操作
                 
                 // 刷新按钮
                 Button(action: {
                     print("🎨 用户点击刷新绘画数据按钮")
-                    isRefreshingPainting = true
+                    
+                    // 🔥 使用 withAnimation 包裹状态变化，让布局更平滑
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        isRefreshingPainting = true
+                    }
+                    
                     NotificationCenter.default.post(name: NSNotification.Name("RefreshPainting"), object: nil)
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.0)
-                    {
-                        isRefreshingPainting = false
+                    
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            isRefreshingPainting = false
+                        }
                     }
                 })
                 {
-                    if isRefreshingPainting
-                    {
+                    if isRefreshingPainting {
                         ProgressView()
                             .scaleEffect(0.7)
-                            .frame(width: 64, height: 64)  // 改大按钮尺寸
-                    }
-                    else
-                    {
+                            .frame(width: 64, height: 64)
+                    } else {
                         Image(systemName: "arrow.clockwise")
                             .font(.title3)
                             .foregroundColor(.white)
-                            .frame(width: 64, height: 64)  // 改大按钮尺寸
+                            .frame(width: 64, height: 64)
                     }
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.blue)
                 .clipShape(Circle())
                 .disabled(isRefreshingPainting || !brushManager.isPaintingEnabled)
-                .buttonBorderShape(.circle)  // 添加圆形边框
+                .buttonBorderShape(.circle)
+                .animation(.none, value: isRefreshingPainting) // 🔥 禁用按钮本身的动画
                 
                 // 保存按钮
                 Button(action: onSave)
                 {
-                    HStack(spacing: 4)
+                    if isSavingPainting
                     {
-                        if isSavingPainting
-                        {
-                            ProgressView()
-                                .scaleEffect(0.7)
-                                .frame(width: 64, height: 64)
-                        }
-                        else
-                        {
-                            Image(systemName: "square.and.arrow.up")
-                                .font(.title3)
-                                .foregroundColor(.white)
-                                .frame(width: 64, height: 64)  // 改大按钮尺寸
-                        }
+                        ProgressView()
+                            .scaleEffect(0.7)
+                            .frame(width: 64, height: 64)
                     }
-                    
-                    .foregroundColor(.white)
+                    else
+                    {
+                        Image(systemName: "square.and.arrow.up")
+                            .font(.title3)
+                            .foregroundColor(.white)
+                            .frame(width: 64, height: 64)
+                    }
                 }
                 .buttonStyle(.borderedProminent)
                 .tint(.green)
+                .clipShape(Circle())
                 .disabled(isSavingPainting || !brushManager.isPaintingEnabled)
+                .buttonBorderShape(.circle)
+                .animation(.none, value: isSavingPainting) // 🔥 禁用按钮本身的动画
             }
         }
         .padding(.vertical, 12)

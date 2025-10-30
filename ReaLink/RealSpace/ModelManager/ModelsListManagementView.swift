@@ -257,96 +257,48 @@ struct TopToolbar: View {
                 // 刷新按钮
                 Button(action: onRefresh) {
                     Image(systemName: "arrow.clockwise")
-                        .font(.title3)
-                        .foregroundColor(isLoading ? .gray : .blue)
-                        .rotationEffect(.degrees(isLoading ? 360 : 0))
-                        .animation(isLoading ? .linear(duration: 1).repeatForever(autoreverses: false) : .default, value: isLoading)
+                        .font(.body)
+                        .foregroundColor(.blue)
                 }
                 .buttonStyle(.plain)
                 .disabled(isLoading)
                 
                 // 关闭按钮
                 Button(action: onClose) {
-                    Image(systemName: "xmark")
-                        .font(.title2)
-                        .foregroundColor(.secondary)
-                        .frame(width:64,height:64)
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.title3)
+                        .foregroundColor(.gray)
                 }
-                .buttonStyle(.borderedProminent)
-                .clipShape(Circle())
-                .buttonBorderShape(.circle)  // 添加圆形边框
-                .hoverEffect(.highlight)
+                .buttonStyle(.plain)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
             
-            // 模式切换按钮
-            HStack(spacing: 8) {
+            // 统计信息
+            HStack {
+                Image(systemName: "cube.transparent")
+                    .font(.caption)
+                Text("共 \(modelCount) 个模型")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 8)
+            
+            // 模式选择器
+            Picker("查看模式", selection: $currentMode) {
                 ForEach(ViewMode.allCases, id: \.self) { mode in
-                    ModeButton(
-                        mode: mode,
-                        isSelected: currentMode == mode,
-                        count: getCount(for: mode)
-                    ) {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            currentMode = mode
-                        }
-                    }
+                    Label(mode.rawValue, systemImage: mode.icon)
+                        .tag(mode)
                 }
             }
-            .padding(.horizontal, 12)
+            .pickerStyle(.segmented)
+            .padding(.horizontal, 16)
             .padding(.bottom, 12)
         }
         .background(.ultraThinMaterial)
-    }
-    
-    private func getCount(for mode: ViewMode) -> Int {
-        switch mode {
-        case .allModels:
-            return modelCount
-        case .byUser, .byType:
-            return 0 // 不显示数量
-        }
-    }
-}
-
-// MARK: - 模式切换按钮
-
-struct ModeButton: View {
-    let mode: ViewMode
-    let isSelected: Bool
-    let count: Int
-    let action: () -> Void
-    
-    var body: some View {
-        Button(action: action) {
-            HStack(spacing: 6) {
-                Image(systemName: mode.icon)
-                    .font(.subheadline)
-                
-                Text(mode.rawValue)
-                    .font(.subheadline)
-                    .fontWeight(isSelected ? .semibold : .regular)
-                
-                if count > 0 {
-                    Text("\(count)")
-                        .font(.caption)
-                        .fontWeight(.bold)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(isSelected ? Color.white.opacity(0.3) : Color.gray.opacity(0.2))
-                        .cornerRadius(8)
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(isSelected ? Color.blue : Color.gray.opacity(0.1))
-            )
-            .foregroundColor(isSelected ? .white : .primary)
-        }
-        .buttonStyle(.plain)
     }
 }
 
@@ -358,35 +310,47 @@ struct AllModelsView: View {
     let onToggleVisibility: (UUID) -> Void
     
     var body: some View {
-        ScrollView {
+        Group {
             if models.isEmpty {
                 VStack(spacing: 16) {
                     Image(systemName: "cube.transparent")
-                        .font(.system(size: 48))
-                        .foregroundColor(.gray)
+                        .font(.system(size: 60))
+                        .foregroundColor(.gray.opacity(0.5))
                     
                     Text("暂无模型")
                         .font(.headline)
                         .foregroundColor(.secondary)
+                    
+                    Text("场景中还没有放置任何模型")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .multilineTextAlignment(.center)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(.top, 100)
             } else {
-                LazyVStack(spacing: 8) {
-                    ForEach(models) { model in
-                        ModelCompactItem(
-                            modelInfo: model,
-                            isSelected: selectedModelId == model.id,
-                            onToggleVisibility: {
-                                onToggleVisibility(model.id)
-                            },
-                            onSelect: {
-                                selectedModelId = model.id
-                            }
-                        )
+                ScrollView {
+                    LazyVStack(spacing: 8) {
+                        ForEach(models) { model in
+                            ModelCompactItem(
+                                modelInfo: model,
+                                isSelected: selectedModelId == model.id,
+                                onToggleVisibility: {
+                                    onToggleVisibility(model.id)
+                                },
+                                onSelect: {
+                                    selectedModelId = model.id
+                                    // 通知场景高亮显示该模型
+                                    NotificationCenter.default.post(
+                                        name: NSNotification.Name("HighlightModel"),
+                                        object: nil,
+                                        userInfo: ["modelId": model.id.uuidString]
+                                    )
+                                }
+                            )
+                        }
                     }
+                    .padding(12)
                 }
-                .padding(12)
             }
         }
     }
@@ -401,93 +365,101 @@ struct UserCategoryView: View {
     let onToggleUser: (Int64) -> Void
     
     // 按用户分组
-    private var userGroups: [(userId: Int64, username: String, avatarUrl: String?, models: [ModelInfo])] {
-        let grouped = Dictionary(grouping: models) { $0.userId ?? -1 }
-        return grouped.map { userId, userModels in
-            let username = userModels.first?.username ?? "未知用户"
-            let avatarUrl = userModels.first?.avatarUrl
-            return (userId: userId, username: username, avatarUrl: avatarUrl, models: userModels)
-        }.sorted { $0.username < $1.username }
+    private var groupedModels: [(userId: Int64, username: String, avatarUrl: String?, models: [ModelInfo])] {
+        let grouped = Dictionary(grouping: models) { model -> Int64 in
+            model.userId ?? -1
+        }
+        
+        return grouped.map { (userId, models) in
+            let username = models.first?.username ?? "未知用户"
+            let avatarUrl = models.first?.avatarUrl
+            return (userId: userId, username: username, avatarUrl: avatarUrl, models: models)
+        }
+        .sorted { $0.userId == currentUserId ? true : ($1.userId == currentUserId ? false : $0.username < $1.username) }
     }
     
     var body: some View {
-        ScrollView {
-            if userGroups.isEmpty {
+        Group {
+            if models.isEmpty {
                 VStack(spacing: 16) {
-                    Image(systemName: "person.2.fill")
-                        .font(.system(size: 48))
-                        .foregroundColor(.gray)
+                    Image(systemName: "person.2.slash")
+                        .font(.system(size: 60))
+                        .foregroundColor(.gray.opacity(0.5))
                     
                     Text("暂无用户")
                         .font(.headline)
                         .foregroundColor(.secondary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(.top, 100)
             } else {
-                LazyVStack(spacing: 12) {
-                    ForEach(userGroups, id: \.userId) { group in
-                        UserCategoryCard(
-                            userId: group.userId,
-                            username: group.username,
-                            modelCount: group.models.count,
-                            avatarUrl: group.avatarUrl,
-                            isHidden: hiddenUserIds.contains(group.userId),
-                            isCurrentUser: group.userId == currentUserId,
-                            onToggle: {
-                                onToggleUser(group.userId)
-                            }
-                        )
+                ScrollView {
+                    LazyVStack(spacing: 12) {
+                        ForEach(groupedModels, id: \.userId) { group in
+                            UserCategoryCard(
+                                userId: group.userId,
+                                username: group.username,
+                                modelCount: group.models.count,
+                                avatarUrl: group.avatarUrl,
+                                isHidden: hiddenUserIds.contains(group.userId),
+                                isCurrentUser: group.userId == currentUserId,
+                                onToggle: {
+                                    onToggleUser(group.userId)
+                                }
+                            )
+                        }
                     }
+                    .padding(12)
                 }
-                .padding(12)
             }
         }
     }
 }
 
-// MARK: - 模型分类视图
+// MARK: - 模型类型分类视图
 
 struct ModelTypeCategoryView: View {
     let models: [ModelInfo]
     @Binding var hiddenModelTypes: Set<ModelType>
     let onToggleType: (ModelType) -> Void
     
-    // 按类型分组
-    private var typeGroups: [(type: ModelType, models: [ModelInfo])] {
+    // 按模型类型分组
+    private var groupedModels: [(type: ModelType, models: [ModelInfo])] {
         let grouped = Dictionary(grouping: models) { $0.type }
-        return grouped.map { ($0.key, $0.value) }
-            .sorted { $0.type.displayName < $1.type.displayName }
+        return grouped.map { (type, models) in
+            (type: type, models: models)
+        }
+        .sorted { $0.type.displayName < $1.type.displayName }
     }
     
     var body: some View {
-        ScrollView {
-            if typeGroups.isEmpty {
+        Group {
+            if models.isEmpty {
                 VStack(spacing: 16) {
-                    Image(systemName: "square.grid.2x2.fill")
-                        .font(.system(size: 48))
-                        .foregroundColor(.gray)
+                    Image(systemName: "square.grid.2x2.slash")
+                        .font(.system(size: 60))
+                        .foregroundColor(.gray.opacity(0.5))
                     
-                    Text("暂无模型类型")
+                    Text("暂无分类")
                         .font(.headline)
                         .foregroundColor(.secondary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(.top, 100)
             } else {
-                LazyVStack(spacing: 12) {
-                    ForEach(typeGroups, id: \.type) { group in
-                        ModelTypeCategoryCard(
-                            modelType: group.type,
-                            modelCount: group.models.count,
-                            isHidden: hiddenModelTypes.contains(group.type),
-                            onToggle: {
-                                onToggleType(group.type)
-                            }
-                        )
+                ScrollView {
+                    LazyVStack(spacing: 12) {
+                        ForEach(groupedModels, id: \.type) { group in
+                            ModelTypeCategoryCard(
+                                modelType: group.type,
+                                modelCount: group.models.count,
+                                isHidden: hiddenModelTypes.contains(group.type),
+                                onToggle: {
+                                    onToggleType(group.type)
+                                }
+                            )
+                        }
                     }
+                    .padding(12)
                 }
-                .padding(12)
             }
         }
     }
@@ -654,6 +626,14 @@ struct ModelTypeCategoryCard: View {
         case .cone: return Color.purple.opacity(0.2)
         case .capsule: return Color.pink.opacity(0.2)
         case .sign: return Color.brown.opacity(0.2)
+        case .chatBubble: return Color.cyan.opacity(0.2)
+        // ✅ 新增：Emoji 模型的类型颜色
+        case .smileEmoji: return Color.yellow.opacity(0.2)
+        case .stareyesEmoji: return Color.orange.opacity(0.3)
+        case .sadEmoji: return Color.blue.opacity(0.3)
+        case .questionEmoji: return Color.gray.opacity(0.3)
+        case .celebrateEmoji: return Color.red.opacity(0.2)
+        case .poopEmoji: return Color.brown.opacity(0.3)
         }
     }
     

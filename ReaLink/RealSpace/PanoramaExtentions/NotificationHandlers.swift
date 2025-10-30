@@ -422,7 +422,7 @@ extension BasicPanoramaView {
         
         // 解析其他参数
         let size = userInfo["size"] as? Float ?? modelManager.cubeSize
-        let opacity = userInfo["opacity"] as? Float ?? modelManager.modelOpacity
+        var opacity = userInfo["opacity"] as? Float ?? modelManager.modelOpacity
         
         // 🔥 关键修复：对于复制操作，跳过地面吸附
         let isFromDuplication = userInfo["scale"] != nil || userInfo["rotation"] != nil
@@ -517,6 +517,8 @@ extension BasicPanoramaView {
             let alpha = colorInfo["alpha"] ?? 1.0
             color = Color(red: red, green: green, blue: blue, opacity: alpha)
         }
+        
+        
         
         let size = userInfo["size"] as? Float ?? modelManager.cubeSize
         let opacity = userInfo["opacity"] as? Float ?? modelManager.modelOpacity
@@ -795,8 +797,8 @@ extension BasicPanoramaView {
     }
     
     func handleUpdateModelText(_ model: PlacedModel, userInfo: [AnyHashable: Any]) {
-        guard model.type == .sign,
-              let newText = userInfo["text"] as? String else {
+        guard (model.type == .sign || model.type == .chatBubble),
+        let newText = userInfo["text"] as? String else {
             print("❌ Sign模型文字更新参数错误")
             return
         }

@@ -478,8 +478,7 @@ struct QuestionDetailModalWithTabs: View
                             .frame(width: 64, height: 64)
 
                         Image(systemName: "sparkles")
-                            .font(.system(size: 16, weight: .semibold))
-                            .foregroundColor(.white)
+                            .font(.title3)
                             .frame(width: 64,height: 64)
                     }
                     
@@ -513,6 +512,7 @@ struct QuestionDetailModalWithTabs: View
                             }
                         }
                         .disabled(isSendingReply)
+                        .frame(height: 64)
                 }.hoverEffect(.highlight)
 
                 Button(action: handleSendReply)
@@ -539,25 +539,6 @@ struct QuestionDetailModalWithTabs: View
                 .animation(.easeInOut(duration: 0.2), value: replyText.isEmpty)
                 .animation(.easeInOut(duration: 0.2), value: isSendingReply)
             }
-
-            HStack
-            {
-                Text("\(replyText.count)/1000")
-                    .font(.caption2)
-                    .foregroundColor(replyText.count > 1000 ? .red : .secondary)
-
-                Spacer()
-
-                if isSendingReply
-                {
-                    Text("正在发送...")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                }
-            }
-            .opacity(replyText.isEmpty && !isSendingReply ? 0 : 1)
-            .animation(.easeInOut(duration: 0.2), value: replyText.isEmpty)
-            .animation(.easeInOut(duration: 0.2), value: isSendingReply)
         }
     }
 

@@ -236,18 +236,79 @@ class VRSessionManager: ObservableObject {
             self.currentLocationId = locationId
             self.panoramaImageName = panoramaImage
             self.panoramaImageURL = ""
-            print("更新本地全景图: \(panoramaImage), LocationID: \(locationId)")
+            
+            // 🔥 关键修复：同步设置 SceneManager 的位置ID
+            SceneManager.shared?.currentLocationId = locationId
+            
+            print("✅ 更新本地全景图: \(panoramaImage)")
+            print("   - Location ID: \(locationId)")
+            print("   - SceneManager.currentLocationId: \(SceneManager.shared?.currentLocationId ?? -1)")
         }
     }
     
-    func updateLocationInfoWithURL(title: String, locationId: Int64, panoramaImageURL: String) {
+    // 🔥 增强版：自动从URL中解析locationId（动态适配）
+    func updateLocationInfoWithURL(title: String, locationId: Int64? = nil, panoramaImageURL: String) {
         Task { @MainActor in
+            // 🎯 优先使用传入的 locationId，如果为nil则从URL自动解析
+            let finalLocationId: Int64
+            if let providedLocationId = locationId {
+                finalLocationId = providedLocationId
+                print("✅【使用提供的locationId】: \(finalLocationId)")
+            } else {
+                // 从URL中解析 locationId
+                finalLocationId = self.extractLocationIdFromURL(panoramaImageURL) ?? 0
+                if finalLocationId > 0 {
+                    print("✅【自动解析】从URL中提取 locationId: \(finalLocationId)")
+                } else {
+                    print("⚠️【自动解析】无法从URL中提取 locationId，使用默认值0")
+                }
+            }
+            
             self.currentLocationTitle = title
-            self.currentLocationId = locationId
+            self.currentLocationId = finalLocationId
             self.panoramaImageURL = panoramaImageURL
             self.panoramaImageName = ""
-            print("更新URL全景图: \(panoramaImageURL), LocationID: \(locationId)")
+            
+            // 🔥 关键修复：同步设置 SceneManager 的位置ID
+            SceneManager.shared?.currentLocationId = finalLocationId
+            
+            print("✅ 更新URL全景图: \(title)")
+            print("   - Location ID: \(finalLocationId)")
+            print("   - URL: \(panoramaImageURL)")
+            print("   - SceneManager.currentLocationId: \(SceneManager.shared?.currentLocationId ?? -1)")
         }
+    }
+    
+    // 🔥 新增：从URL中提取 locationId
+    /// 支持的URL格式：
+    /// - http://example.com/uploads/location_10_1761676957072.jpg
+    /// - /uploads/location_10_xxx.jpg
+    /// - location_10_xxx.jpg
+    /// - http://example.com/uploads/panoramas/location_10_xxx.jpg
+    private func extractLocationIdFromURL(_ url: String) -> Int64? {
+        // 使用正则表达式匹配 location_数字 格式
+        let pattern = "location_(\\d+)"
+        
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
+            print("❌【URL解析】正则表达式创建失败")
+            return nil
+        }
+        
+        let nsString = url as NSString
+        let results = regex.matches(in: url, options: [], range: NSRange(location: 0, length: nsString.length))
+        
+        if let match = results.first, match.numberOfRanges > 1 {
+            let locationIdRange = match.range(at: 1)
+            let locationIdString = nsString.substring(with: locationIdRange)
+            
+            if let locationId = Int64(locationIdString) {
+                print("✅【URL解析】成功提取 locationId: \(locationId) (从 \(url))")
+                return locationId
+            }
+        }
+        
+        print("⚠️【URL解析】无法从URL中提取 locationId: \(url)")
+        return nil
     }
     
     func setLoadingState(_ isLoading: Bool) {

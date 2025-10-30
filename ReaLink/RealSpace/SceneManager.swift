@@ -10,10 +10,19 @@ import SwiftUI
 import ARKit  // ✅ 添加这一行
 
 class SceneManager {
+    // 🔥 新增：单例访问（用于从其他地方访问）
+    static var shared: SceneManager?
+    
+    // 🔥 新增：当前位置ID（用于VisionAI识别）
+    var currentLocationId: Int64?
+    
     private weak var vrManager: VRSessionManager?
     
     init(vrManager: VRSessionManager) {
         self.vrManager = vrManager
+        
+        // 🔥 设置为全局单例（方便其他地方访问）
+        SceneManager.shared = self
     }
     
     // MARK: - 🔥 天空球旋转配置（全局统一）

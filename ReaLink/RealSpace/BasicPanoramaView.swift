@@ -101,7 +101,15 @@ struct BasicPanoramaView: View
     @State private var handAttachedModel: PlacedModel?
     @State private var isModelAttachedToHand = false
     @State private var handAttachmentTimer: Timer?
-       
+    
+    @State public var pinchStartTime: Date?          // 捏合开始时间
+    @State public var pinchStartPosition: SIMD3<Float>?  // 捏合开始位置
+    @State public var isPinchStable: Bool = false    // 捏合是否稳定（持续时间足够）
+    @State public var hasMoved: Bool = false         // 是否已移动足够距离
+    
+    @State public var magnifyStartScale: SIMD3<Float> = SIMD3<Float>(repeating: 1.0)
+    @State public var isMagnifyInProgress: Bool = false  // 🔥 新增：跟踪缩放手势是否正在进行
+
     // MARK: - 主视图
 
     var body: some View
@@ -114,6 +122,11 @@ struct BasicPanoramaView: View
 
                 rootEntity = Entity()
                 rootEntity.name = "RootEntity"
+                
+                // 🔥 关键：添加光照设置
+                   setupLighting(in: rootEntity)
+                
+                
                 content.add(rootEntity)
                 isRootEntityInitialized = true
 
@@ -223,6 +236,46 @@ struct BasicPanoramaView: View
             handleModelTestingModeChange(newValue)
         }
     }
+    
+    func setupLighting(in rootEntity: Entity) {
+        print("🔦 设置场景光照（visionOS 版本）")
+        
+        // 1️⃣ 添加多个点光源（模拟环境光）
+        let pointLightPositions: [SIMD3<Float>] = [
+            [0, 2, 0],      // 正上方
+            [2, 1, 2],      // 右前上
+            [-2, 1, 2],     // 左前上
+            [0, 1, -2]      // 后上方
+        ]
+        
+        for (index, position) in pointLightPositions.enumerated() {
+            let pointLight = PointLightComponent(
+                color: .white,
+                intensity: 50000,  // 🔥 大幅增加强度
+                attenuationRadius: 10.0
+            )
+            
+            let lightEntity = Entity()
+            lightEntity.components.set(pointLight)
+            lightEntity.position = position
+            rootEntity.addChild(lightEntity)
+            print("   ✅ 已添加点光源 \(index + 1)，位置: \(position)")
+        }
+        
+        // 2️⃣ 添加定向光（visionOS 正确方式）
+        let directionalLight = DirectionalLightComponent(
+            color: .white,
+            intensity: 5000
+        )
+        
+        let dirLightEntity = Entity()
+        dirLightEntity.components.set(directionalLight)
+        dirLightEntity.position = [0, 3, 2]
+        dirLightEntity.look(at: [0, 0, 0], from: dirLightEntity.position, relativeTo: nil)
+        rootEntity.addChild(dirLightEntity)
+        print("   ✅ 已添加定向光")
+    }
+
     
     private func setupResetNotificationListener() {
         let resetObserver = NotificationCenter.default.addObserver(

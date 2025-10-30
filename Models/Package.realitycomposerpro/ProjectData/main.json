@@ -1,9 +1,31 @@
 {
   "pathsToIds" : {
-    "Models\/Sources\/Models\/Models.rkassets\/Scene.usda" : "B0F50E6D-40A2-4C63-81BC-EA113C4F33CC"
+    "Models\/Sources\/Models\/Models.rkassets\/Chat-s.usda" : "F825FEA5-2ACA-4FA3-B6FB-EF37FE427054",
+    "Models\/Sources\/Models\/Models.rkassets\/Chat.usda" : "5288AB79-B7A9-4951-85E9-8708BA8365F1",
+    "Models\/Sources\/Models\/Models.rkassets\/Scene.usda" : "B0F50E6D-40A2-4C63-81BC-EA113C4F33CC",
+    "Models\/Sources\/Models\/Models.rkassets\/StarEyes_emoji.usdc" : "CD77F9C7-EF14-40CA-AD98-44B1B2A3754A",
+    "Models\/Sources\/Models\/Models.rkassets\/celebrate_emoji.usdc" : "2B37FABD-76E1-42BD-A026-3A544DD84E7D",
+    "Models\/Sources\/Models\/Models.rkassets\/cha_bubble.usdc" : "F0BA8328-47E0-44CB-8DEE-C43DAAD8453B",
+    "Models\/Sources\/Models\/Models.rkassets\/emoji1.usda" : "F7B6C148-D489-4EAC-887E-533BD696CB1B",
+    "Models\/Sources\/Models\/Models.rkassets\/poop_emoji.usdc" : "DD739322-25C5-4BC0-A47B-197E58A55F7F",
+    "Models\/Sources\/Models\/Models.rkassets\/question_emoji.usdc" : "75BEC739-9198-4787-AB36-7656F2BD9713",
+    "Models\/Sources\/Models\/Models.rkassets\/sad_emoji.usdc" : "1EF2706F-67B0-4776-8106-A1CAD37AE12D",
+    "Models\/Sources\/Models\/Models.rkassets\/smile_emoji.usdc" : "6774A5A4-4C40-4623-B9AB-C5E0F9A2B362",
+    "Models\/Sources\/Models\/Models.rkassets\/ss.usdc" : "28AD90DC-732C-499B-9279-57CAF687C3B1"
   },
   "projectID" : -4040439610217921167,
   "uuidToIntID" : {
-    "B0F50E6D-40A2-4C63-81BC-EA113C4F33CC" : 7758684025291967219
+    "1EF2706F-67B0-4776-8106-A1CAD37AE12D" : 3580955992958854437,
+    "28AD90DC-732C-499B-9279-57CAF687C3B1" : 1269066143168251859,
+    "2B37FABD-76E1-42BD-A026-3A544DD84E7D" : 110298411249575041,
+    "5288AB79-B7A9-4951-85E9-8708BA8365F1" : -8717931474083510377,
+    "6774A5A4-4C40-4623-B9AB-C5E0F9A2B362" : 5912177675889793470,
+    "75BEC739-9198-4787-AB36-7656F2BD9713" : -9083603685612526383,
+    "B0F50E6D-40A2-4C63-81BC-EA113C4F33CC" : 7758684025291967219,
+    "CD77F9C7-EF14-40CA-AD98-44B1B2A3754A" : 5894759559993670015,
+    "DD739322-25C5-4BC0-A47B-197E58A55F7F" : 2044867838201634780,
+    "F0BA8328-47E0-44CB-8DEE-C43DAAD8453B" : -340203112750129205,
+    "F7B6C148-D489-4EAC-887E-533BD696CB1B" : 4179076361803833641,
+    "F825FEA5-2ACA-4FA3-B6FB-EF37FE427054" : -4915490230023398719
   }
 }

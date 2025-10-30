@@ -228,7 +228,9 @@ extension BasicPanoramaView {
                 let originalParent: Entity? = model.entity.parent
                 
                 loadedEntity.name = originalName
-                loadedEntity.generateCollisionShapes(recursive: true)
+                loadedEntity.position = targetPosition
+                loadedEntity.scale = targetScale
+                loadedEntity.orientation = targetRotation
                 
                 loadedEntity.setupAsModelEntity(
                     modelType: originalModelComponent.modelType,
@@ -238,39 +240,33 @@ extension BasicPanoramaView {
                 
                 applyMaterialProperties(to: loadedEntity, opacity: opacity, color: color)
                 
-                if type == .sign, let textContent = text, !textContent.isEmpty {
-                    addTextToSignModel(loadedEntity, text: textContent)
+                if ModelRegistry.shared.supportsTextInput(for: type), let text = text {
+                    addTextToSignModel(loadedEntity, text: text)
                 }
-                
-                loadedEntity.position = targetPosition
-                loadedEntity.scale = targetScale
-                loadedEntity.orientation = targetRotation
-                
-                model.entity.removeFromParent()
                 
                 if let parent = originalParent {
+                    model.entity.removeFromParent()
                     parent.addChild(loadedEntity)
+                    print("✅【USDZ模型已替换占位符】: \(originalName)")
                 } else {
-                    rootEntity.addChild(loadedEntity)
+                    print("⚠️【无父实体，无法替换占位符】")
                 }
-                
-                print("🔥【旋转应用完成】最终旋转: \(loadedEntity.orientation)")
                 
                 if let index = placedModels.firstIndex(where: { $0.id == model.id }) {
                     let updatedModel = PlacedModel(
-                                            id: model.id,
-                                            entity: loadedEntity,
-                                            originalScale: targetScale,
-                                            originalPosition: targetPosition,
-                                            type: model.type,
-                                            color: model.color,
-                                            size: model.size,
-                                            opacity: model.opacity,
-                                            userId: model.userId,
-                                            text: model.text,
-                                            username: model.username,      // ✅ 保留用户名
-                                            avatarUrl: model.avatarUrl     // ✅ 保留头像
-                                        )
+                        id: model.id,
+                        entity: loadedEntity,
+                        originalScale: model.originalScale,
+                        originalPosition: model.originalPosition,
+                        type: model.type,
+                        color: model.color,
+                        size: model.size,
+                        opacity: model.opacity,
+                        userId: model.userId,
+                        text: model.text,
+                        username: model.username,
+                        avatarUrl: model.avatarUrl
+                    )
                     
                     placedModels[index] = updatedModel
                 }
@@ -288,15 +284,29 @@ extension BasicPanoramaView {
     
     // MARK: - 应用材质属性
     func applyMaterialProperties(to entity: Entity, opacity: Float, color: Color) {
-        if let modelComponent = entity.modelComponent,
-           modelComponent.modelType == .sign {
-            print("🪵 Sign模型保持原始材质，不应用自定义颜色")
-            applyOpacityOnly(to: entity, opacity: opacity)
-        } else {
-            let targetUIColor = UIColor(color).withAlphaComponent(CGFloat(opacity))
-            applyMaterialRecursive(entity, color: targetUIColor)
-            print("🎨 应用颜色到模型: \(color)")
+        if let modelComponent = entity.modelComponent {
+            let modelType = modelComponent.modelType
+            
+            // 🔥 ChatBubble特殊处理：强制蓝色+70%不透明度
+            if modelType == .chatBubble {
+                print("💬【ChatBubble强制蓝色材质】70%不透明度")
+                let chatBubbleColor = UIColor(red: 0.2, green: 0.6, blue: 1.0, alpha: 0.7)
+                applyMaterialRecursive(entity, color: chatBubbleColor)
+                return
+            }
+            
+            // ✅ 关键修复：检查模型是否允许颜色自定义
+            if !ModelRegistry.shared.allowsColorCustomization(for: modelType) {
+                print("🎨【\(modelType.displayName)保持原始材质】不允许颜色自定义")
+                applyOpacityOnly(to: entity, opacity: opacity)
+                return
+            }
         }
+        
+        // 其他模型应用用户指定的颜色
+        let targetUIColor = UIColor(color).withAlphaComponent(CGFloat(opacity))
+        applyMaterialRecursive(entity, color: targetUIColor)
+        print("🎨 应用颜色到模型: \(color)")
     }
     
     // MARK: - 仅应用透明度
@@ -373,7 +383,11 @@ extension BasicPanoramaView {
     
     // MARK: - 为Sign模型添加文字
     func addTextToSignModel(_ signEntity: Entity, text: String) {
-        print("📝 强制更新Sign模型文字: \(text)")
+        // 🔥 检测模型类型
+        let isChatBubble = signEntity.modelComponent?.modelType == .chatBubble
+        let modelTypeName = isChatBubble ? "ChatBubble" : "Sign"
+        
+        print("📝 强制更新\(modelTypeName)模型文字: \(text)")
         
         let existingTextEntities = signEntity.children.filter { $0.name == "signText" }
         for textEntity in existingTextEntities {
@@ -386,19 +400,31 @@ extension BasicPanoramaView {
             return
         }
         
-        let textEntity = createTextEntity(text: text.trimmingCharacters(in: .whitespacesAndNewlines))
+        // 🔥 根据模型类型创建不同大小的文字
+        let textEntity = createTextEntity(
+            text: text.trimmingCharacters(in: .whitespacesAndNewlines),
+            isChatBubble: isChatBubble
+        )
         textEntity.name = "signText"
         
-        textEntity.position = SIMD3<Float>(0, -0.05, 0.02)
+        // 🔥 根据模型类型调整位置 - 往下调整
+        if isChatBubble {
+            textEntity.position = SIMD3<Float>(0, -0.05, 0.02)  // ChatBubble往下移动
+            print("💬【ChatBubble文字位置】往下调整")
+        } else {
+            textEntity.position = SIMD3<Float>(0, -0.10, 0.02)  // Sign进一步往下
+            print("🪧【Sign文字位置】往下调整")
+        }
+        
         textEntity.orientation = simd_quatf(angle: 0, axis: SIMD3<Float>(0, 1, 0))
         
         signEntity.addChild(textEntity)
         
-        print("✅ 新的文字已添加到Sign模型")
+        print("✅ 新的文字已添加到\(modelTypeName)模型")
         print("   - 文字内容: \(text)")
         print("   - 文字实体名称: \(textEntity.name)")
         print("   - 文字实体位置: \(textEntity.position)")
-        print("   - Sign实体子项数量: \(signEntity.children.count)")
+        print("   - 实体子项数量: \(signEntity.children.count)")
         
         for (index, child) in signEntity.children.enumerated() {
             print("   - 子项\(index): \(child.name) at \(child.position)")
@@ -406,19 +432,24 @@ extension BasicPanoramaView {
     }
     
     // MARK: - 创建文字实体
-    func createTextEntity(text: String) -> ModelEntity {
-        print("📝 创建文字实体: \(text)")
+    func createTextEntity(text: String, isChatBubble: Bool = false) -> ModelEntity {
+        let modelType = isChatBubble ? "ChatBubble" : "Sign"
+        print("📝 创建\(modelType)文字实体: \(text)")
         
         guard !text.isEmpty else {
             print("⚠️ 文字为空，返回空实体")
             return ModelEntity()
         }
         
-        let fontSize: Float = 0.03
-        let font = UIFont.systemFont(ofSize: CGFloat(fontSize), weight: .medium)
+        // 🔥 字体减小两号：ChatBubble从0.08改为0.06，Sign从0.03改为0.02
+        let fontSize: Float = isChatBubble ? 0.06 : 0.02
+        print("📏 字体大小: \(fontSize)米 (\(Int(fontSize * 100))厘米)")
         
-        let containerWidth: CGFloat = 1.0
-        let containerHeight: CGFloat = 0.3
+        let font = UIFont.systemFont(ofSize: CGFloat(fontSize), weight: isChatBubble ? .bold : .medium)
+        
+        // 🔥 ChatBubble使用更大的容器
+        let containerWidth: CGFloat = isChatBubble ? 2.0 : 1.0
+        let containerHeight: CGFloat = isChatBubble ? 0.6 : 0.3
         let containerFrame = CGRect(
             x: -containerWidth / 2,
             y: -containerHeight / 2,
@@ -429,7 +460,7 @@ extension BasicPanoramaView {
         do {
             let textGeometry = MeshResource.generateText(
                 text,
-                extrusionDepth: 0.002,
+                extrusionDepth: isChatBubble ? 0.003 : 0.002,  // ChatBubble文字稍厚
                 font: font,
                 containerFrame: containerFrame,
                 alignment: .center,
@@ -437,14 +468,19 @@ extension BasicPanoramaView {
             )
             
             var textMaterial = SimpleMaterial()
-            textMaterial.color = .init(tint: .black)
+            // 🔥 统一使用黑色字体，alpha为0.5
+            textMaterial.color = .init(tint: UIColor(red: 0.0, green: 0.0, blue: 0.0, alpha: 0.5))
             textMaterial.metallic = 0.0
             textMaterial.roughness = 0.9
             
             let textEntity = ModelEntity(mesh: textGeometry, materials: [textMaterial])
-            textEntity.position = SIMD3<Float>(0, -0.5, 0.001)
+            textEntity.position = SIMD3<Float>(0, isChatBubble ? 0 : -0.5, 0.001)
             
-            print("✅ 文字实体创建成功，深度减少至2毫米")
+            print("✅ \(modelType)文字实体创建成功")
+            print("   - 字体大小: \(fontSize)米")
+            print("   - 容器尺寸: \(containerWidth) x \(containerHeight)")
+            print("   - 文字颜色: 黑色 alpha 0.5")
+            
             return textEntity
             
         } catch {

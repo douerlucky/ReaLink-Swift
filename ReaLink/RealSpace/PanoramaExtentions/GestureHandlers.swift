@@ -125,12 +125,21 @@ extension BasicPanoramaView {
         let currentUserId = userManager.getUserId()
         guard targetEntity.canUserManipulate(currentUserId: currentUserId) else { return }
         
-        let scale = Float(value.magnification)
-        targetEntity.scale = SIMD3<Float>(repeating: scale)
+        // 🔥 修复：使用标志位来准确判断手势开始
+        if !isMagnifyInProgress {
+            // 手势刚开始，记录当前缩放作为基准
+            magnifyStartScale = targetEntity.scale
+            isMagnifyInProgress = true
+            print("🎯【缩放开始】记录基准缩放: \(magnifyStartScale)")
+        }
         
-        print("📏【缩放模型】: \(modelComp.modelType.rawValue) 到: \(scale)")
+        // 将手势的放大倍数应用到起始缩放值上
+        let scale = Float(value.magnification)
+        targetEntity.scale = magnifyStartScale * scale
+        
+        print("🔍【缩放模型】: \(modelComp.modelType.rawValue) 到: \(targetEntity.scale)")
     }
-    
+
     func handleMagnifyEnded(_ value: EntityTargetValue<MagnifyGesture.Value>) {
         var targetEntity = value.entity
         
@@ -148,9 +157,13 @@ extension BasicPanoramaView {
         
         guard let modelComp = modelComponent else { return }
         
+        // 🔥 重置缩放状态标志
+        isMagnifyInProgress = false
+        print("✅【缩放结束】最终缩放: \(targetEntity.scale)")
+        
         if let model = findModelByEntity(targetEntity) {
             let fromScale = model.originalScale
-            let toScale = targetEntity.scale
+            let toScale = targetEntity.scale  // 保存最终的累积缩放值
             
             let snapshot = ModelSnapshot(
                 modelId: modelComp.modelId,
@@ -167,7 +180,7 @@ extension BasicPanoramaView {
                 let updatedModel = PlacedModel(
                     id: model.id,
                     entity: model.entity,
-                    originalScale: toScale,
+                    originalScale: toScale,  // 🔥 更新为当前缩放值，作为下次缩放的基准
                     originalPosition: model.originalPosition,
                     type: model.type,
                     color: model.color,
@@ -175,8 +188,8 @@ extension BasicPanoramaView {
                     opacity: model.opacity,
                     userId: model.userId,
                     text: model.text,
-                    username: model.username,      // ✅ 保留用户名
-                    avatarUrl: model.avatarUrl     // ✅ 保留头像
+                    username: model.username,
+                    avatarUrl: model.avatarUrl
                 )
                 placedModels[index] = updatedModel
             }
@@ -184,6 +197,8 @@ extension BasicPanoramaView {
         
         print("✅【缩放完成并记录历史】")
     }
+    
+
     
     // MARK: - 点击手势处理
     func handleSpatialTap(_ value: EntityTargetValue<SpatialTapGesture.Value>) {

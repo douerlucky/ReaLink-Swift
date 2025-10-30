@@ -215,93 +215,97 @@ func userHasStrokesToErase(userId: Int64?) -> Bool {
 // MARK: - 云端操作扩展
 extension PaintingCanvas {
 /// 保存所有笔画到云端（只保存当前用户）
-func savePaintingToCloud(locationId: Int64? = nil, questionId: Int64? = nil, userId: Int64? = nil) async throws {
-    print("🎨 开始保存画作到云端...")
-    print("   📍 locationId: \(locationId ?? -1), questionId: \(questionId ?? -1), userId: \(userId ?? -1)")
-    
-    // 🔥 检查userId是否有效
-    guard let validUserId = userId, validUserId > 0 else {
-        print("❌ 保存失败：无效的用户ID")
-        await MainActor.run {
-            NotificationCenter.default.post(
-                name: NSNotification.Name("CloudOperationResult"),
-                object: nil,
-                userInfo: ["success": false, "message": "保存失败：无效的用户ID"]
-            )
+
+    func savePaintingToCloud(locationId: Int64? = nil, questionId: Int64? = nil, userId: Int64? = nil) async throws {
+        print("🎨 开始保存画作到云端...")
+        print("   📍 locationId: \(locationId ?? -1), questionId: \(questionId ?? -1), userId: \(userId ?? -1)")
+        
+        // 🔥 检查userId是否有效
+        guard let validUserId = userId, validUserId > 0 else {
+            print("❌ 保存失败：无效的用户ID")
+            await MainActor.run {
+                NotificationCenter.default.post(
+                    name: NSNotification.Name("CloudOperationResult"),
+                    object: nil,
+                    userInfo: ["success": false, "message": "保存失败：无效的用户ID"]
+                )
+            }
+            return
         }
-        return
-    }
-    
-    // 🔥 只保存当前用户的笔画
-    var strokesData: [SerializableStroke] = []
-    
-    // 从保存的笔画数据中筛选当前用户的笔画
-    for stroke in finishedStrokeData {
-        if stroke.userId == validUserId {
-            let serializableStroke = SerializableStroke(from: stroke)
+        
+        // 🔥 只保存当前用户的笔画
+        var strokesData: [SerializableStroke] = []
+        
+        // 从保存的笔画数据中筛选当前用户的笔画
+        for stroke in finishedStrokeData {
+            if stroke.userId == validUserId {
+                let serializableStroke = SerializableStroke(from: stroke)
+                strokesData.append(serializableStroke)
+            }
+        }
+        
+        // 如果当前还有正在绘制的笔画，且是当前用户的，也包含进去
+        if let currentStroke = currentStroke, currentStroke.userId == validUserId {
+            let serializableStroke = SerializableStroke(from: currentStroke)
             strokesData.append(serializableStroke)
         }
-    }
-    
-    // 如果当前还有正在绘制的笔画，且是当前用户的，也包含进去
-    if let currentStroke = currentStroke, currentStroke.userId == validUserId {
-        let serializableStroke = SerializableStroke(from: currentStroke)
-        strokesData.append(serializableStroke)
-    }
-    
-    print("   📦 找到 \(strokesData.count) 个笔画属于用户 \(validUserId)")
-    print("   📊 总笔画数: \(finishedStrokeData.count + (currentStroke != nil ? 1 : 0))")
-    
-    guard !strokesData.isEmpty else {
-        print("⚠️ 没有笔画数据可以保存（用户ID: \(validUserId)）")
-        await MainActor.run {
-            NotificationCenter.default.post(
-                name: NSNotification.Name("CloudOperationResult"),
-                object: nil,
-                userInfo: ["success": false, "message": "没有笔画数据可以保存"]
-            )
-        }
-        return
-    }
-    
-    // 创建空间画作数据
-    let paintingData = SpatialPaintingData(
-        strokes: strokesData,
-        locationId: locationId,
-        questionId: questionId,
-        userId: userId
-    )
-    
-    do {
-        let jsonData = try JSONEncoder().encode(paintingData)
         
-        print("🎨 准备上传用户 \(userId ?? -1) 的 \(strokesData.count) 个笔画到云端")
+        print("   📦 找到 \(strokesData.count) 个笔画属于用户 \(validUserId)")
+        print("   📊 总笔画数: \(finishedStrokeData.count + (currentStroke != nil ? 1 : 0))")
         
-        try await NetworkManager.shared.uploadPaintingData(jsonData, locationId: locationId, questionId: questionId, userId: userId)
-        
-        print("🎨 空间画作已保存到云端")
-        
-        await MainActor.run {
-            NotificationCenter.default.post(
-                name: NSNotification.Name("CloudOperationResult"),
-                object: nil,
-                userInfo: ["success": true, "message": "画作保存成功"]
-            )
+        // 🔥 修复：改进空画布的处理逻辑
+        guard !strokesData.isEmpty else {
+            print("ℹ️ 当前画布为空，没有笔画数据")
+            await MainActor.run {
+                NotificationCenter.default.post(
+                    name: NSNotification.Name("CloudOperationResult"),
+                    object: nil,
+                    userInfo: [
+                        "success": true, // 🔥 改为 success: true，表示操作完成
+                        "message": "画布为空，无需保存" // 🔥 更友好的提示
+                    ]
+                )
+            }
+            return
         }
         
-    } catch {
-        print("🎨 保存到云端失败: \(error.localizedDescription)")
+        // 创建空间画作数据
+        let paintingData = SpatialPaintingData(
+            strokes: strokesData,
+            locationId: locationId,
+            questionId: questionId,
+            userId: userId
+        )
         
-        await MainActor.run {
-            NotificationCenter.default.post(
-                name: NSNotification.Name("CloudOperationResult"),
-                object: nil,
-                userInfo: ["success": false, "message": "保存失败: \(error.localizedDescription)"]
-            )
+        do {
+            let jsonData = try JSONEncoder().encode(paintingData)
+            
+            print("🎨 准备上传用户 \(userId ?? -1) 的 \(strokesData.count) 个笔画到云端")
+            
+            try await NetworkManager.shared.uploadPaintingData(jsonData, locationId: locationId, questionId: questionId, userId: userId)
+            
+            print("🎨 空间画作已保存到云端")
+            
+            await MainActor.run {
+                NotificationCenter.default.post(
+                    name: NSNotification.Name("CloudOperationResult"),
+                    object: nil,
+                    userInfo: ["success": true, "message": "画作保存成功"]
+                )
+            }
+            
+        } catch {
+            print("🎨 保存到云端失败: \(error.localizedDescription)")
+            
+            await MainActor.run {
+                NotificationCenter.default.post(
+                    name: NSNotification.Name("CloudOperationResult"),
+                    object: nil,
+                    userInfo: ["success": false, "message": "保存失败: \(error.localizedDescription)"]
+                )
+            }
         }
     }
-}
-
 /// 从云端加载画作数据
 func loadPaintingFromCloud(locationId: Int64? = nil, questionId: Int64? = nil, userId: Int64? = nil) async throws {
     print("🎨 开始从云端加载画作...")

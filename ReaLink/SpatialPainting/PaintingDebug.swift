@@ -340,7 +340,8 @@ class BrushManager: ObservableObject {
     @Published var brushColor: Color = .blue
     @Published var brushSize: Float = 2.0
     @Published var opacity: Float = 1.0
-    @Published var isPaintingEnabled: Bool = false  // 绘画开关状态
+    @Published var isPaintingEnabled: Bool = false  // 总开关：是否启用空间绘画模式
+    @Published var canUserDraw: Bool = false        // 🆕 子开关：用户是否能捏合绘画
     
     static let shared = BrushManager()
     private init() {}

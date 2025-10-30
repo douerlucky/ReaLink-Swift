@@ -877,6 +877,7 @@ struct AIAssistantContent: View
                     }
                     .disabled(core.isLoading)
                     .hoverEffect(.highlight)
+                    .frame(height: 48)
 
                 Button(action: handleSendMessage)
                 { // 🔥 修改：使用新的发送方法
@@ -884,12 +885,13 @@ struct AIAssistantContent: View
                     {
                         ProgressView()
                             .scaleEffect(0.8)
+                            .frame(width: 48,height: 48)
                     }
                     else
                     {
                         Image(systemName: "paperplane.fill")
                             .foregroundColor(.white)
-                            .frame(width: 64,height: 64)
+                            .frame(width: 48,height: 48)
                     }
                 }
                 .buttonStyle(.borderedProminent)
@@ -1201,10 +1203,17 @@ struct AIAssistantWindow: View
 {
     @Environment(\.dismissWindow) private var dismissWindow
     @EnvironmentObject var userManager: UserManager
+    @EnvironmentObject var targetQuestionManager: TargetQuesitonManager  // ✅ 新增：注入问题管理器
 
-    @State private var currentQuestion: Question = Question_1
-    @StateObject public var core = AIAssistantCore(type: .explore(question: Question_1))
+    // ✅ 改为动态初始化，不再写死 Question_1
+    @StateObject public var core: AIAssistantCore
     @FocusState private var isTextFieldFocused: Bool
+    
+    // ✅ 自定义初始化器
+    init() {
+        // 使用默认问题初始化（会在 setupWindow 中更新为实际问题）
+        _core = StateObject(wrappedValue: AIAssistantCore(type: .explore(question: Question_1)))
+    }
 
     @State private var contentOpacity: Double = 0
     @State private var headerScale: CGFloat = 0.8
@@ -1511,6 +1520,21 @@ struct AIAssistantWindow: View
 
     private func setupWindow()
     {
+        // ✅ 新增：从 targetQuestionManager 获取当前问题并初始化
+        print("🪟【AI助手窗口启动】")
+        let currentQuestion = targetQuestionManager.currentQuestion
+        print("📍 当前问题: \(currentQuestion.title)")
+        print("📍 所在地点: \(currentQuestion.actualPlace)")
+        print("📍 LocationID: \(currentQuestion.locationID)")
+        
+        // 更新 core 的问题类型
+        core.type = .explore(question: currentQuestion)
+        Task { @MainActor in
+            core.initializeIfNeeded()
+        }
+        print("✅【AI助手窗口初始化完成】")
+        
+        // 监听窗口打开通知
         NotificationCenter.default.addObserver(
             forName: NSNotification.Name("OpenAIAssistantWindow"),
             object: nil,
@@ -1554,7 +1578,8 @@ struct AIAssistantWindow: View
 
     private func updateQuestion(_ question: Question)
     {
-        currentQuestion = question
+        // ✅ 修改：不再使用 currentQuestion 变量，直接更新 core
+        print("🔄 更新问题: \(question.title), LocationID: \(question.locationID)")
         core.type = .explore(question: question)
         core.initializeIfNeeded()
     }
@@ -1789,9 +1814,13 @@ extension AIAssistantWindow {
                     core.sceneRecognitionState = .recognizing
                 }
                 
-                // 使用测试locationId=1
+                // ✅ 修改：使用当前问题的 locationID，而不是硬编码的 1
+                let currentQuestion = targetQuestionManager.currentQuestion
+                let locationId = currentQuestion.locationID
+                print("📍 测试使用 LocationID: \(locationId) (来自问题: \(currentQuestion.title))")
+                
                 let response = try await NetworkManager.shared.recognizeSceneRegion(
-                    locationId: 1,
+                    locationId: locationId,  // ✅ 动态使用当前问题的 locationID
                     region: panoramaRegion,
                     userPrompt: "这是什么地方？(测试用模拟区域)"
                 )

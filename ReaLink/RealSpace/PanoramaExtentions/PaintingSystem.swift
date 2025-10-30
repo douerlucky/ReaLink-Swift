@@ -2,7 +2,7 @@
 //  PaintingSystem.swift
 //  ReaLink
 //
-//  空间绘画系统
+//  空间绘画系统 - 优化版（平滑、远距离支持）
 //
 
 import RealityKit
@@ -11,11 +11,31 @@ import ARKit
 
 extension BasicPanoramaView {
     
+    // MARK: - 位置平滑缓冲区（使用静态变量避免重复初始化）
+    private static var smoothedPosition: SIMD3<Float>?  // EMA平滑后的位置
+    private static let smoothingFactor: Float = 0.3  // EMA平滑因子（0.1-0.5，越小越平滑）
+    
+    // MARK: - 上一次有效位置（用于插值）
+    private static var lastValidPosition: SIMD3<Float>?
+    private static var lastValidTime: Date?
+    private static var lastValidVelocity: SIMD3<Float>?  // 记录速度用于预测
+    
+    // MARK: - 连续丢失计数
+    private static var consecutiveLossCount: Int = 0
+    private static let maxInterpolationFrames: Int = 10  // 最多插值10帧（约166ms @60fps）
+    
     // MARK: - 绘画模式处理
     func handlePaintingModeChange(_ newValue: Bool) {
         print("🎨 绘画模式切换: \(newValue)")
         
         if newValue {
+            // 🔥 清空EMA状态和记录
+            Self.smoothedPosition = nil
+            Self.lastValidPosition = nil
+            Self.lastValidTime = nil
+            Self.lastValidVelocity = nil
+            Self.consecutiveLossCount = 0
+            
             Task { @MainActor in
                 await self.updatePaintingCanvasInScene()
                 await self.handTracking.startTracking()
@@ -24,17 +44,24 @@ extension BasicPanoramaView {
                     await self.loadAllPaintingData()
                 }
                 
-                print("🎨 绘画模式启用完成")
+                print("🎨 绘画模式启用完成（已重置EMA平滑器）")
             }
         } else {
             stopDrawing()
+            
+            // 🔥 清空EMA状态和记录
+            Self.smoothedPosition = nil
+            Self.lastValidPosition = nil
+            Self.lastValidTime = nil
+            Self.lastValidVelocity = nil
+            Self.consecutiveLossCount = 0
             
             Task { @MainActor in
                 self.handTracking.stopTracking()
                 await self.updatePaintingCanvasInScene()
             }
             
-            print("🎨 绘画已禁用")
+            print("🎨 绘画已禁用（已清空EMA平滑器）")
         }
     }
     
@@ -64,25 +91,111 @@ extension BasicPanoramaView {
         print("🎨 绘画画布状态更新: enabled=\(brushManager.isPaintingEnabled), exists=\(canvasExists)")
     }
     
-    // MARK: - 手势追踪更新（同步版本）
+    // MARK: - 位置平滑和动态阈值辅助函数
+    
+    /// 使用指数移动平均（EMA）平滑手部位置 - 比移动平均更好
+    private func smoothPosition(_ rawPosition: SIMD3<Float>) -> SIMD3<Float> {
+        guard let previousSmoothed = Self.smoothedPosition else {
+            // 第一次，直接使用原始位置
+            Self.smoothedPosition = rawPosition
+            Self.lastValidPosition = rawPosition
+            Self.lastValidTime = Date()
+            Self.lastValidVelocity = SIMD3<Float>(0, 0, 0)
+            Self.consecutiveLossCount = 0
+            return rawPosition
+        }
+        
+        // 🔥 EMA公式: smoothed = α × raw + (1-α) × previous_smoothed
+        // α越小越平滑但延迟越大，α越大响应越快但越不平滑
+        let alpha = Self.smoothingFactor
+        let smoothed = alpha * rawPosition + (1 - alpha) * previousSmoothed
+        
+        // 计算速度（用于预测）
+        if let lastTime = Self.lastValidTime, let lastPos = Self.lastValidPosition {
+            let deltaTime = Float(Date().timeIntervalSince(lastTime))
+            if deltaTime > 0.001 {  // 避免除零
+                let velocity = (smoothed - lastPos) / deltaTime
+                Self.lastValidVelocity = velocity
+            }
+        }
+        
+        // 更新状态
+        Self.smoothedPosition = smoothed
+        Self.lastValidPosition = smoothed
+        Self.lastValidTime = Date()
+        Self.consecutiveLossCount = 0
+        
+        return smoothed
+    }
+    
+    /// 根据手部距离计算动态采样阈值
+    private func getDynamicSamplingThreshold(handPosition: SIMD3<Float>) -> Float {
+        let userHeadPosition = getUserCurrentPosition()
+        let distance = length(handPosition - userHeadPosition)
+        
+        // 🔥 更激进的动态阈值：距离越远，阈值越大
+        // 近距离 (0.3-0.5m): 0.15mm (超精细)
+        // 中距离 (0.5-1.0m): 0.3mm  (推荐)
+        // 远距离 (1.0-2.0m): 0.8mm  (流畅)
+        // 超远距离 (>2.0m): 1.5mm  (防断线)
+        let baseThreshold: Float = 0.00015  // 0.15mm
+        let scaleFactor = max(1.0, pow(distance / 0.5, 1.5))  // 使用1.5次方加速增长
+        let threshold = min(baseThreshold * scaleFactor, 0.0015)  // 最大1.5mm
+        
+        return threshold
+    }
+    
+    /// 预测性插值 - 使用速度预测下一个位置
+    private func interpolatePosition() -> SIMD3<Float>? {
+        guard let lastPos = Self.lastValidPosition,
+              let lastTime = Self.lastValidTime else {
+            return nil
+        }
+        
+        let timeSinceLastValid = Date().timeIntervalSince(lastTime)
+        Self.consecutiveLossCount += 1
+        
+        // 🔥 改进1：增加最大插值时间到约166ms（10帧 @ 60fps）
+        let maxInterpolationTime: TimeInterval = 0.166
+        
+        guard timeSinceLastValid < maxInterpolationTime,
+              Self.consecutiveLossCount <= Self.maxInterpolationFrames else {
+            print("⚠️ 丢失追踪时间过长，停止插值")
+            return nil
+        }
+        
+        // 🔥 改进2：使用速度进行预测性插值
+        if let velocity = Self.lastValidVelocity {
+            let predictedPosition = lastPos + velocity * Float(timeSinceLastValid)
+            
+            // 🔥 改进3：限制预测距离，避免预测过远
+            let maxPredictionDistance: Float = 0.05  // 最多预测5cm
+            let actualDistance = length(predictedPosition - lastPos)
+            
+            if actualDistance > maxPredictionDistance {
+                // 预测距离过大，使用限制后的位置
+                let direction = normalize(predictedPosition - lastPos)
+                let limitedPosition = lastPos + direction * maxPredictionDistance
+                print("🔧 使用限制预测位置: \(String(format: "%.3f", actualDistance))m")
+                return limitedPosition
+            }
+            
+            print("🔧 使用预测位置继续绘画（帧\(Self.consecutiveLossCount)）")
+            return predictedPosition
+        } else {
+            // 没有速度信息，使用最后位置
+            print("🔧 使用最后位置继续绘画（帧\(Self.consecutiveLossCount)）")
+            return lastPos
+        }
+    }
+    
+    // MARK: - 手势追踪更新（同步版本 - 优化版）
     func performHandTrackingUpdateSync() {
         var detectedPinch = false
         var pinchPosition: SIMD3<Float>?
         var pinchingHand: String = ""
         
-        if let leftHand = handTracking.latestLeftHand,
-           let handSkeleton = leftHand.handSkeleton {
-            
-            let (isPinch2, position2) = checkPinchGesture(for: leftHand, skeleton: handSkeleton)
-            let (isPinch3, position3) = checkThreeFingerPinch(for: leftHand, skeleton: handSkeleton)
-            
-            if isPinch2 || isPinch3 {
-                detectedPinch = true
-                pinchPosition = isPinch3 ? position3 : position2
-                pinchingHand = isPinch3 ? "左手(3指)" : "左手(2指)"
-            }
-        }
-        
+        // 🔥 只识别右手，完全忽略左手
         if let rightHand = handTracking.latestRightHand,
            let handSkeleton = rightHand.handSkeleton {
             
@@ -91,16 +204,18 @@ extension BasicPanoramaView {
             
             if isPinch2 || isPinch3 {
                 detectedPinch = true
-                pinchPosition = isPinch3 ? position3 : position2
-                
-                let rightHandType = isPinch3 ? "右手(3指)" : "右手(2指)"
-                let hasLeftHand = pinchingHand.contains("左手")
-                
-                if detectedPinch && hasLeftHand {
-                    pinchingHand = "双手"
-                } else {
-                    pinchingHand = rightHandType
-                }
+                // 🔥 使用EMA平滑后的位置
+                let rawPosition = isPinch3 ? position3 : position2
+                pinchPosition = rawPosition != nil ? smoothPosition(rawPosition!) : nil
+                pinchingHand = isPinch3 ? "右手(3指)" : "右手(2指)"
+            }
+        } else if isPinching && isCurrentlyDrawing {
+            // 🔥 已经在绘画中，且短暂丢失追踪，尝试预测性插值
+            if let interpolated = interpolatePosition() {
+                detectedPinch = true
+                pinchPosition = interpolated
+                pinchingHand = "预测插值"
+                // 不打印过多日志，避免刷屏
             }
         }
         
@@ -108,21 +223,68 @@ extension BasicPanoramaView {
         let newPinchPosition = pinchPosition
         let newPinchingState = detectedPinch
         
-        if newPinchingState != wasPinching {
+        // 🔥 改进的绘画触发逻辑 - 更流畅
+        if newPinchingState && !wasPinching {
+            // 🔥 检测到新的捏合 - 记录开始时间和位置
             DispatchQueue.main.async {
-                self.isPinching = newPinchingState
+                self.pinchStartTime = Date()
+                self.pinchStartPosition = newPinchPosition
+                self.isPinchStable = false
+                self.hasMoved = false
+                self.isPinching = true
+                self.lastPinchPosition = newPinchPosition
+            }
+            
+        } else if newPinchingState && wasPinching {
+            // 🔥 持续捏合中 - 检查是否满足绘画条件
+            DispatchQueue.main.async {
                 self.lastPinchPosition = newPinchPosition
                 
-                if newPinchingState && !wasPinching {
-                    self.startDrawing()
-                } else if !newPinchingState && wasPinching {
-                    self.stopDrawing()
+                guard let startTime = self.pinchStartTime,
+                      let startPos = self.pinchStartPosition else {
+                    return
+                }
+                
+                // 计算捏合持续时间
+                let duration = Date().timeIntervalSince(startTime)
+                
+                // 计算移动距离
+                if let currentPos = newPinchPosition {
+                    let moveDistance = length(currentPos - startPos)
+                    
+                    // 🔥 进一步降低条件1：捏合持续超过0.05秒（极快响应）
+                    let hasStableDuration = duration >= 0.05
+                    
+                    // 🔥 进一步降低条件2：移动距离超过0.5厘米（极易触发）
+                    let hasMovedEnough = moveDistance >= 0.005
+                    
+                    // 🔥 必须同时满足两个条件才开始绘画
+                    if !self.isCurrentlyDrawing && hasStableDuration && hasMovedEnough {
+                        self.startDrawing()
+                        print("🎨 开始绘画 - 持续:\(String(format: "%.2f", duration))秒, 移动:\(String(format: "%.3f", moveDistance))米")
+                    } else if self.isCurrentlyDrawing {
+                        // 已经开始绘画，继续绘画
+                        self.continueDrawing()
+                    }
                 }
             }
-        } else if newPinchingState && wasPinching && isCurrentlyDrawing {
+            
+        } else if !newPinchingState && wasPinching {
+            // 🔥 捏合结束
             DispatchQueue.main.async {
-                self.lastPinchPosition = newPinchPosition
-                self.continueDrawing()
+                self.isPinching = false
+                self.pinchStartTime = nil
+                self.pinchStartPosition = nil
+                self.isPinchStable = false
+                self.hasMoved = false
+                
+                if self.isCurrentlyDrawing {
+                    self.stopDrawing()
+                }
+                
+                // 重置EMA状态，准备下次绘画
+                Self.smoothedPosition = nil
+                Self.consecutiveLossCount = 0
             }
         }
     }
@@ -140,12 +302,12 @@ extension BasicPanoramaView {
                                      indexTransform.columns.3.z)
         
         let distance = length(thumbPos - indexPos)
-        let pinchThreshold: Float = 0.020
+        // 🔥 保持合理的捏合阈值 - 15mm，既能检测到捏合，又不会太敏感
+        let pinchThreshold: Float = 0.015
         
         let isPinchDetected = distance < pinchThreshold
         if isPinchDetected {
             let midPoint = (thumbPos + indexPos) / 2
-            print("✋ 检测到捏合手势: \(anchor.chirality == .left ? "左手" : "右手"), 距离: \(String(format: "%.3f", distance))m")
             return (true, midPoint)
         }
         
@@ -167,19 +329,70 @@ extension BasicPanoramaView {
                                       middleTransform.columns.3.y,
                                       middleTransform.columns.3.z)
         
+        // 计算手到用户的距离，用于动态调整阈值
+        let userPos = getUserCurrentPosition()
+        let centerPoint = (thumbPos + indexPos + middlePos) / 3
+        let distanceToUser = length(centerPoint - userPos)
+        
+        // 🔥 改进1：超激进的动态阈值 - 远距离大幅放宽
+        // 近距离 (<0.5m): 2.0cm
+        // 中距离 (0.5-1.0m): 3.0cm
+        // 远距离 (1.0-2.0m): 4.5cm
+        // 超远距离 (>2.0m): 6.0cm
+        let basePinchThreshold: Float = 0.020  // 2.0cm（增加33%）
+        let distanceScale = max(1.0, pow(distanceToUser / 0.5, 1.3))  // 加速增长
+        let dynamicThreshold = min(basePinchThreshold * distanceScale, 0.060)  // 最大6cm（翻倍）
+        
         let thumbIndexDistance = length(thumbPos - indexPos)
         let thumbMiddleDistance = length(thumbPos - middlePos)
         let indexMiddleDistance = length(indexPos - middlePos)
         
-        let pinchThreshold: Float = 0.015
+        // 计算平均距离
+        let averageDistance = (thumbIndexDistance + thumbMiddleDistance + indexMiddleDistance) / 3
         
-        let allDistancesSmall = thumbIndexDistance < pinchThreshold &&
-                               thumbMiddleDistance < pinchThreshold &&
-                               indexMiddleDistance < pinchThreshold
+        // 🔥 改进2：超宽松判断 - 降低要求
+        // 方案1：平均距离小于阈值（主要条件）
+        let isPinchByAverage = averageDistance < dynamicThreshold
         
-        if allDistancesSmall {
-            let centerPoint = (thumbPos + indexPos + middlePos) / 3
-            return (true, centerPoint)
+        // 方案2：至少1对手指靠近（降低要求：从2对改为1对）
+        var closeCount = 0
+        if thumbIndexDistance < dynamicThreshold { closeCount += 1 }
+        if thumbMiddleDistance < dynamicThreshold { closeCount += 1 }
+        if indexMiddleDistance < dynamicThreshold { closeCount += 1 }
+        
+        let isPinchByPairs = closeCount >= 1  // 只要有1对手指靠近即可
+        
+        // 🔥 改进3：组合判断 - 使用OR逻辑（只要满足一个条件即可）
+        let isPinchDetected = isPinchByAverage || isPinchByPairs
+        
+        if isPinchDetected {
+            // 🔥 改进4：对三指中心点使用额外的平滑
+            // 三指比二指更不稳定，需要更多平滑
+            let rawCenter = centerPoint
+            
+            // 使用一个单独的静态变量存储三指中心点的平滑状态
+            struct ThreeFingerSmoothing {
+                static var lastCenter: SIMD3<Float>?
+            }
+            
+            let smoothedCenter: SIMD3<Float>
+            if let lastCenter = ThreeFingerSmoothing.lastCenter {
+                // 对三指使用更强的平滑（alpha=0.2，比普通EMA更平滑）
+                let alpha: Float = 0.2
+                smoothedCenter = alpha * rawCenter + (1 - alpha) * lastCenter
+            } else {
+                smoothedCenter = rawCenter
+            }
+            
+            ThreeFingerSmoothing.lastCenter = smoothedCenter
+            
+            return (true, smoothedCenter)
+        } else {
+            // 重置三指平滑状态
+            struct ThreeFingerSmoothing {
+                static var lastCenter: SIMD3<Float>?
+            }
+            ThreeFingerSmoothing.lastCenter = nil
         }
         
         return (false, nil)
@@ -187,36 +400,54 @@ extension BasicPanoramaView {
     
     // MARK: - 绘画操作
     func startDrawing() {
-            guard let position = lastPinchPosition else {
-                print("⚠️ 无法获取捏合位置")
-                return
-            }
-            
-            guard brushManager.isPaintingEnabled else {
-                print("⚠️ 绘画未启用")
-                return
-            }
-            
-            isCurrentlyDrawing = true
-            let brushConfig = createBrushConfig()
-            
-            // 🔥 关键修复：传递当前用户ID
-            let currentUserId = userManager.getUserId()
-            paintingCanvas.addPoint(position, brushConfig: brushConfig, userId: currentUserId)
-            
-            print("🎨 开始绘画，位置: (\(String(format: "%.3f", position.x)), \(String(format: "%.3f", position.y)), \(String(format: "%.3f", position.z))), 用户ID: \(currentUserId ?? -1)")
+        guard let position = lastPinchPosition else {
+            print("⚠️ 无法获取捏合位置")
+            return
         }
+        
+        // ✅ 检查总开关
+        guard brushManager.isPaintingEnabled else {
+            print("⚠️ 空间绘画未启用")
+            return
+        }
+        
+        // ✅ 检查用户绘画权限
+        guard brushManager.canUserDraw else {
+            print("⚠️ 用户绘画权限未开启")
+            return
+        }
+        
+        isCurrentlyDrawing = true
+        let brushConfig = createBrushConfig()
+        let currentUserId = userManager.getUserId()
+        paintingCanvas.addPoint(position, brushConfig: brushConfig, userId: currentUserId)
+        
+        print("🎨 开始绘画，位置: (\(position)), 用户ID: \(currentUserId ?? -1)")
+    }
     
     func continueDrawing() {
            guard let position = lastPinchPosition else { return }
            guard isCurrentlyDrawing else { return }
+        
+        guard brushManager.canUserDraw else {
+              stopDrawing()
+              return
+          }
            
            if let lastPoint = paintingCanvas.currentStroke?.points.last {
                let moveDistance = length(position - lastPoint)
-               if moveDistance < 0.001 {
+               
+               // 🔥 使用动态阈值 - 根据手部距离自适应
+               let dynamicThreshold = getDynamicSamplingThreshold(handPosition: position)
+               
+               if moveDistance < dynamicThreshold {
                    return
                }
-               print("🎨 继续绘画，移动距离: \(String(format: "%.4f", moveDistance))m")
+               
+               // 只在关键时刻打印，避免刷屏
+               if moveDistance > dynamicThreshold * 2 {
+                   print("🎨 继续绘画，移动距离: \(String(format: "%.4f", moveDistance))m, 阈值: \(String(format: "%.4f", dynamicThreshold))m")
+               }
            }
            
            let brushConfig = createBrushConfig()

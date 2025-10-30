@@ -1,5 +1,5 @@
 /*
-画笔类型和配置管理 - 增强版（更亮、更粗的发光画笔）
+画笔类型和配置管理 - 修复颜色区分度问题
 */
 
 import SwiftUI
@@ -41,8 +41,8 @@ extension UIColor {
         return UIColor(hue: hue, saturation: newSaturation, brightness: newBrightness, alpha: alpha)
     }
     
-    // 🔥 新增：超级增强版 - 专为发光材质设计
-    func superEnhancedColor(saturationBoost: CGFloat = 2.0, brightnessBoost: CGFloat = 2.0) -> UIColor {
+    // 🔥 修复：更智能的发光颜色增强算法
+    func glowEnhancedColor() -> UIColor {
         var hue: CGFloat = 0
         var saturation: CGFloat = 0
         var brightness: CGFloat = 0
@@ -50,11 +50,53 @@ extension UIColor {
         
         self.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha)
         
-        // 🔥 极致增强饱和度和亮度
-        let newSaturation = min(1.0, saturation * saturationBoost)
+        // 🔥 关键修复：保持颜色的相对差异
+        // 1. 适度提升饱和度（而不是推到最大）
+        let newSaturation = min(1.0, saturation * 1.3)
+        
+        // 2. 根据原始亮度动态调整增强幅度
+        // 深色保持较深，浅色保持较浅，避免全部变成纯白
+        let brightnessBoost: CGFloat
+        if brightness < 0.3 {
+            // 深色：适度提升（2-3倍）
+            brightnessBoost = 2.5
+        } else if brightness < 0.6 {
+            // 中等亮度：中度提升（3-4倍）
+            brightnessBoost = 3.5
+        } else {
+            // 浅色：较大提升（4-5倍）
+            brightnessBoost = 4.5
+        }
+        
         let newBrightness = min(1.0, brightness * brightnessBoost)
         
         return UIColor(hue: hue, saturation: newSaturation, brightness: newBrightness, alpha: alpha)
+    }
+    
+    // 🔥 修复：为发光效果应用最终亮度倍增（降低倍数）
+    func applyGlowMultiplier() -> UIColor {
+        var red: CGFloat = 0
+        var green: CGFloat = 0
+        var blue: CGFloat = 0
+        var alpha: CGFloat = 0
+        
+        self.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+        
+        // 🔥 关键修复：从 800 降到 50，保持颜色区分度
+        let multiplier: CGFloat = 50.0
+        
+        // 🔥 使用更温和的增强公式，避免颜色饱和
+        // 使用平方根函数让深色和浅色保持相对差异
+        let enhanceRed = min(1.0, pow(red, 0.8) * multiplier)
+        let enhanceGreen = min(1.0, pow(green, 0.8) * multiplier)
+        let enhanceBlue = min(1.0, pow(blue, 0.8) * multiplier)
+        
+        return UIColor(
+            red: enhanceRed,
+            green: enhanceGreen,
+            blue: enhanceBlue,
+            alpha: alpha
+        )
     }
 }
 
@@ -102,7 +144,7 @@ struct BrushConfig {
     var mode: BrushMode = .continuous
     
     // 🔥 修改：默认使用发光材质
-    var shader: ShaderType = .emissive  // 改为发光材质
+    var shader: ShaderType = .emissive
     
     // 🔥 修改：增加默认画笔大小到 3厘米（更粗）
     var size: Float = 0.03  // 从 0.01 (10mm) 增加到 0.03 (30mm)
@@ -127,14 +169,20 @@ struct BrushConfig {
             return SimpleMaterial(color: enhancedColor, roughness: .float(0.01), isMetallic: true)
             
         case .emissive:
-            // 🔥 大幅增强发光效果
-            // 1. 先使用超级增强色彩
-            let superEnhanced = color.superEnhancedColor(saturationBoost: 2.5, brightnessBoost: 2.5)
+            // 🔥 核心修复：使用新的发光颜色算法
+            // 1. 先进行智能的HSB增强（保持颜色差异）
+            let glowEnhanced = color.glowEnhancedColor()
             
-            // 2. 再应用超高亮度倍数（从200提升到800）
-            let glowColor = superEnhanced.withBrightness(multiplier: 800.0)
+            // 2. 再应用温和的亮度倍增（从800降到50）
+            let finalGlowColor = glowEnhanced.applyGlowMultiplier()
             
-            var material = UnlitMaterial(color: glowColor)
+            var material = UnlitMaterial(color: finalGlowColor)
+            
+            print("🎨 发光颜色处理:")
+            print("   原始颜色: \(color)")
+            print("   HSB增强后: \(glowEnhanced)")
+            print("   最终发光: \(finalGlowColor)")
+            
             return material
             
         case .glass:
