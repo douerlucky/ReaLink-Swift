@@ -2,7 +2,7 @@
 //  RealityWindowView.swift
 //  ReaLink
 //
-//  主Reality窗口视图 - 已移除区域选择功能
+//  主Reality窗口视图 - 修复窗口状态bug版本
 //
 
 import ARKit
@@ -21,6 +21,10 @@ struct RealityWindowView: View
     @EnvironmentObject var windowStateManager: WindowStateManager
     @State public var showQuestionDetail = false
     @State private var showModelsManagement = false
+    
+    // 🔥 新增:跟踪scenePhase变化
+    @State private var previousScenePhase: ScenePhase = .active
+    
     var body: some View
     {
         ZStack
@@ -98,31 +102,68 @@ struct RealityWindowView: View
     {
         print("🧹【开始清理RealityWindow资源】")
 
+        // 🔥 关键修复:无条件重置窗口状态
+        // onDisappear只在窗口真正销毁时才会触发,所以这里应该无条件执行
+        windowStateManager.isRealityWindowOpen = false
+        
         // 发送通知
         NotificationCenter.default.post(
             name: NSNotification.Name("RealityWindowClosed"),
             object: nil
         )
 
-        windowStateManager.isRealityWindowOpen = false
-
-        print("✅【RealityWindow清理完成】")
+        print("✅【RealityWindow清理完成】isRealityWindowOpen = false")
     }
 
     private func handleScenePhaseChange(oldPhase: ScenePhase, newPhase: ScenePhase)
     {
         print("🔄 RealityWindow 场景阶段变化: \(oldPhase) -> \(newPhase)")
-
-        if newPhase == .background || newPhase == .inactive
-        {
-            print("🔴 检测到窗口被关闭")
+        
+        // 🔥 关键修复：检测用户点击关闭按钮的特征序列
+        // inactive -> background 是点击关闭按钮的典型特征
+        // visionOS 的系统关闭按钮不会触发 onDisappear，只会让窗口进入后台
+        if newPhase == .background && oldPhase == .inactive {
+            print("🚪【检测到关闭窗口操作】inactive -> background")
+            print("   执行主动关闭流程...")
+            
+            // 先清理状态
             performCleanup()
+            
+            // 主动关闭窗口
+            dismissWindow(id: "RealityWindow")
+            
+            previousScenePhase = newPhase
+            return
         }
+        
+        // 真正的休眠：active -> background（跳过inactive）
+        if newPhase == .background && oldPhase == .active {
+            print("😴【Vision Pro进入休眠】active -> background")
+            previousScenePhase = newPhase
+            return
+        }
+        
+        if newPhase == .inactive {
+            print("💤【窗口失去焦点】等待下一个状态变化...")
+        }
+        
+        if newPhase == .active {
+            if previousScenePhase == .background {
+                print("😊【从休眠恢复】background -> active")
+            } else if previousScenePhase == .inactive {
+                print("😊【重新获得焦点】inactive -> active")
+            }
+        }
+        
+        previousScenePhase = newPhase
     }
 
     private func handleWindowDisappear()
     {
         print("🔴 RealityWindow onDisappear 被触发")
+        
+        // 🔥 关键修复:onDisappear 只会在窗口真正被销毁时触发
+        // 休眠不会触发 onDisappear,所以这里无条件执行清理是安全的
         performCleanup()
     }
 

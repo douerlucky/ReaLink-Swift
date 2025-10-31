@@ -48,7 +48,7 @@ struct SceneRecognitionEntryButton: View {
                 }
                 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Vision AI 场景识别")
+                    Text("SceneSence AI 场景识别")
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundColor(.primary)
                     
@@ -105,7 +105,7 @@ struct SceneRecognitionPanel: View {
                             .font(.title3)
                             .foregroundColor(.cyan)
                         
-                        Text("Vision AI 场景识别")
+                        Text("SceneSence AI 场景识别")
                             .font(.headline)
                             .fontWeight(.semibold)
                     }
@@ -441,7 +441,7 @@ struct InstructionCard: View {
         case .waitingConfirm:
             return "区域已选择完成。在下方输入框输入问题后点击发送，AI会基于选中区域进行识别分析。"
         case .recognizing:
-            return "正在使用Vision AI分析选中的场景区域，识别其中的物体、文字和场景信息..."
+            return "正在使用SceneSence AI分析选中的场景区域，识别其中的物体、文字和场景信息..."
         case .completed:
             return "AI识别已完成！查看下方的识别结果。可继续提问或点击删除按钮清除选区。"
         }

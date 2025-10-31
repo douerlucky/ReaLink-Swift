@@ -133,13 +133,7 @@ struct ModelsListManagementView: View {
         isLoading = true
         print("📋 开始请求场景模型列表...")
         
-        // 发送请求
-        NotificationCenter.default.post(
-            name: NSNotification.Name("RequestPlacedModelsList"),
-            object: nil
-        )
-        
-        // 监听返回的模型数据
+        // 🔥 修复：先注册观察者，再发送请求，确保不会错过响应
         var observer: NSObjectProtocol?
         observer = NotificationCenter.default.addObserver(
             forName: NSNotification.Name("PlacedModelsListResponse"),
@@ -162,6 +156,12 @@ struct ModelsListManagementView: View {
                 NotificationCenter.default.removeObserver(obs)
             }
         }
+        
+        // 🔥 修复：观察者注册完成后再发送请求
+        NotificationCenter.default.post(
+            name: NSNotification.Name("RequestPlacedModelsList"),
+            object: nil
+        )
         
         // 3秒后如果还没有数据，取消加载状态
         DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
@@ -257,19 +257,21 @@ struct TopToolbar: View {
                 // 刷新按钮
                 Button(action: onRefresh) {
                     Image(systemName: "arrow.clockwise")
-                        .font(.body)
+                        .font(.title2)
                         .foregroundColor(.blue)
                 }
                 .buttonStyle(.plain)
                 .disabled(isLoading)
+                .frame(width: 64, height: 64)
                 
                 // 关闭按钮
                 Button(action: onClose) {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.title3)
+                        .font(.title2)
                         .foregroundColor(.gray)
                 }
                 .buttonStyle(.plain)
+                .frame(width: 64, height: 64)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)

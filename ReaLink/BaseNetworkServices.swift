@@ -1,6 +1,6 @@
 import Foundation
 
-let backendURL = "http://192.168.3.132:3000"
+let backendURL = "http://localhost:3000"
 //192.168.3.132
 // 真机http://172.20.10.3:3000
 // 否则http://localhost:3000
