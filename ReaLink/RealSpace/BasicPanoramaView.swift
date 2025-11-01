@@ -109,6 +109,11 @@ struct BasicPanoramaView: View
     
     @State public var magnifyStartScale: SIMD3<Float> = SIMD3<Float>(repeating: 1.0)
     @State public var isMagnifyInProgress: Bool = false  // 🔥 新增：跟踪缩放手势是否正在进行
+    
+    // 🔥 新增：场景阶段监听 - 处理 Home 键导致的状态不同步
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var previousScenePhase: ScenePhase = .active
+    @State private var hasEnteredBackground = false
 
     // MARK: - 主视图
 
@@ -234,6 +239,9 @@ struct BasicPanoramaView: View
         }
         .onChange(of: modelManager.isModelTestingEnabled) { _, newValue in
             handleModelTestingModeChange(newValue)
+        }
+        .onChange(of: scenePhase) { oldPhase, newPhase in
+            handleScenePhaseChange(oldPhase: oldPhase, newPhase: newPhase)
         }
     }
     
@@ -847,6 +855,104 @@ struct BasicPanoramaView: View
 }
 
 extension BasicPanoramaView {
+    
+    // MARK: - 🔥 场景阶段变化处理 - 解决 Home 键导致的状态不同步问题
+    
+    /// 处理场景阶段变化（当用户按 Home 键时）
+    func handleScenePhaseChange(oldPhase: ScenePhase, newPhase: ScenePhase) {
+        print("🔄 BasicPanoramaView 场景阶段变化: \(oldPhase) -> \(newPhase)")
+        
+        // 🔥 关键修复：检测进入后台时立即触发清理
+        if newPhase == .background && (oldPhase == .active || oldPhase == .inactive) {
+            print("🏠【检测到按下 Home 键】应用进入后台")
+            print("🧹【触发全局清理流程】")
+            hasEnteredBackground = true
+            
+            // 方案1：立即关闭所有窗口
+            closeAllAssociatedWindows()
+            
+            // 方案2：通知 App 执行全局清理
+            NotificationCenter.default.post(
+                name: NSNotification.Name("ForceBackgroundCleanup"),
+                object: nil
+            )
+        }
+        
+        // 检测从后台返回
+        if newPhase == .active && hasEnteredBackground {
+            print("🔄【从后台返回】检查 ImmersiveSpace 状态...")
+            hasEnteredBackground = false
+            
+            // 延迟一点检查，确保系统状态已稳定
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                self.checkAndCleanupAfterBackground()
+            }
+        }
+        
+        previousScenePhase = newPhase
+    }
+    
+    /// 从后台返回后检查并清理状态
+    private func checkAndCleanupAfterBackground() {
+        print("🔍【检查 ImmersiveSpace 状态】")
+        
+        // 检查 rootEntity 是否还在场景中
+        // 如果 rootEntity 不在场景中或场景不可用，说明 ImmersiveSpace 被系统关闭了
+        guard isRootEntityInitialized && rootEntity.parent != nil else {
+            print("⚠️【检测到 ImmersiveSpace 已被系统关闭】")
+            print("   需要完全退出并重置状态...")
+            
+            // ImmersiveSpace 已经被系统关闭，我们需要确保应用回到正常状态
+            performFullCleanup()
+            return
+        }
+        
+        print("✅【ImmersiveSpace 状态正常】继续运行")
+    }
+    
+    /// 关闭所有相关窗口
+    private func closeAllAssociatedWindows() {
+        let windowsToClose = [
+            "RealityWindow",
+            "ControlMenuWindow",
+            "ModelControlWindow",
+            "BrushControlWindow",
+            "AIAssistantWindow",
+            "ModelsListWindow"
+        ]
+        
+        for windowId in windowsToClose {
+            print("  🗑️ 关闭窗口: \(windowId)")
+            dismissWindow(id: windowId)
+        }
+        
+        // 重置窗口状态
+        windowStateManager.resetAllWindowStates()
+        
+        print("✅【所有窗口已关闭】")
+    }
+    
+    /// 执行完整清理
+    private func performFullCleanup() {
+        print("🧹【开始完整清理】")
+        
+        // 1. 关闭所有窗口
+        closeAllAssociatedWindows()
+        
+        // 2. 发送重置通知
+        NotificationCenter.default.post(
+            name: NSNotification.Name("ResetAllVRStates"),
+            object: nil
+        )
+        
+        // 3. 关闭 ImmersiveSpace 自己
+        Task {
+            await dismissImmersiveSpace()
+            print("✅【ImmersiveSpace 已关闭】")
+        }
+        
+        print("✅【完整清理完成】")
+    }
     
     func shouldIgnoreOKGesture() -> Bool {
            // 需要阻止OK手势的窗口列表

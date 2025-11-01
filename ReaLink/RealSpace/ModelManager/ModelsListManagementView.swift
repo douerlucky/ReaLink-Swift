@@ -38,6 +38,9 @@ struct ModelsListManagementView: View {
     // 🔥 模型类型过滤状态
     @State private var hiddenModelTypes: Set<ModelType> = []
     
+    // ⭐️ 修复：添加单个模型的隐藏状态跟踪
+    @State private var hiddenModelIds: Set<UUID> = []
+    
     // 🔥 选中的模型ID（用于高亮显示）
     @State private var selectedModelId: UUID?
     
@@ -62,6 +65,7 @@ struct ModelsListManagementView: View {
                 case .allModels:
                     AllModelsView(
                         models: filteredModels,
+                        hiddenModelIds: $hiddenModelIds,
                         selectedModelId: $selectedModelId,
                         onToggleVisibility: toggleModelVisibility
                     )
@@ -113,6 +117,10 @@ struct ModelsListManagementView: View {
     
     private var filteredModels: [ModelInfo] {
         placedModels.filter { model in
+            // ⭐️ 注意：单独隐藏的模型不应该从列表中移除
+            // hiddenModelIds 只用于控制显示样式（透明度、图标）
+            // 列表项应该一直显示，让用户可以重新显示模型
+            
             // 过滤被隐藏的用户
             if let userId = model.userId, hiddenUserIds.contains(userId) {
                 return false
@@ -175,12 +183,23 @@ struct ModelsListManagementView: View {
     // MARK: - 操作方法
     
     private func toggleModelVisibility(_ modelId: UUID) {
+        // ⭐️ 修复：先更新本地状态
+        if hiddenModelIds.contains(modelId) {
+            hiddenModelIds.remove(modelId)
+            print("👀 显示模型: \(modelId)")
+        } else {
+            hiddenModelIds.insert(modelId)
+            print("🙈 隐藏模型: \(modelId)")
+        }
+        
+        // 然后发送通知
+        let isHidden = hiddenModelIds.contains(modelId)
         NotificationCenter.default.post(
             name: NSNotification.Name("ToggleModelVisibility"),
             object: nil,
             userInfo: [
                 "modelId": modelId.uuidString,
-                "isHidden": true // 这里会被场景根据当前状态切换
+                "isHidden": isHidden
             ]
         )
     }
@@ -308,6 +327,7 @@ struct TopToolbar: View {
 
 struct AllModelsView: View {
     let models: [ModelInfo]
+    @Binding var hiddenModelIds: Set<UUID>
     @Binding var selectedModelId: UUID?
     let onToggleVisibility: (UUID) -> Void
     
@@ -336,6 +356,7 @@ struct AllModelsView: View {
                             ModelCompactItem(
                                 modelInfo: model,
                                 isSelected: selectedModelId == model.id,
+                                isHidden: hiddenModelIds.contains(model.id),
                                 onToggleVisibility: {
                                     onToggleVisibility(model.id)
                                 },
@@ -472,11 +493,12 @@ struct ModelTypeCategoryView: View {
 struct ModelCompactItem: View {
     let modelInfo: ModelInfo
     let isSelected: Bool
+    let isHidden: Bool
     let onToggleVisibility: () -> Void
     let onSelect: () -> Void
     
     var body: some View {
-        Button(action: onSelect) {
+        Button(action: onToggleVisibility) {  // ✅ 点击整个卡片就是切换可见性
             HStack(spacing: 12) {
                 // 3D预览
                 ZStack {
@@ -512,22 +534,20 @@ struct ModelCompactItem: View {
                 
                 Spacer()
                 
-                // 可见性按钮
-                Button(action: onToggleVisibility) {
-                    Image(systemName: "eye.fill")
-                        .font(.body)
-                        .foregroundColor(.blue)
-                }
-                .buttonStyle(.plain)
+                // ✅ 状态图标（不是按钮，只是展示）
+                Image(systemName: isHidden ? "eye.slash.fill" : "eye.fill")
+                    .font(.title3)
+                    .foregroundColor(isHidden ? .gray : .blue)
             }
-            .padding(10)
+            .padding(12)
             .background(
                 RoundedRectangle(cornerRadius: 10)
-                    .fill(isSelected ? Color.blue.opacity(0.2) : Color.clear)
+                    .fill(.ultraThinMaterial)
+                    .opacity(isHidden ? 0.5 : 1.0)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 10)
-                    .stroke(isSelected ? Color.blue : modelInfo.color.opacity(0.3), lineWidth: isSelected ? 2 : 1)
+                    .stroke(isHidden ? Color.gray.opacity(0.3) : Color.blue.opacity(0.5), lineWidth: 1)
             )
         }
         .buttonStyle(.plain)

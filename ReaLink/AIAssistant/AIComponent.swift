@@ -268,14 +268,24 @@ class AIAssistantCore: ObservableObject
         if isLoadingSummary { return "正在总结对话..." }
         if isLoadingSmartSuggestion { return "正在生成智能建议..." }
         if isLoadingRelatedSearch { return "正在搜索相关问题..." }
+        
+        // 🔥 新增：场景识别加载提示
+        if sceneRecognitionState == .recognizing {
+            return "SceneSence AI正在识别场景..."
+        }
+        
         return "AI正在思考..."
     }
 
     var isLoading: Bool
     {
-        return isSending || isLoadingSummary || isLoadingSmartSuggestion || isLoadingRelatedSearch
+        // 🔥 修复：添加场景识别状态检查
+        return isSending ||
+               isLoadingSummary ||
+               isLoadingSmartSuggestion ||
+               isLoadingRelatedSearch ||
+               sceneRecognitionState == .recognizing  // ← 关键修复
     }
-
     // MARK: - 私有方法
 
     @MainActor private func loadConversationHistory()
@@ -1432,6 +1442,7 @@ struct AIAssistantWindow: View
                 Image(systemName: "sparkles")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(.white)
+                    .frame(width: 64,height: 64)
             }
 
             VStack(alignment: .leading, spacing: 2)
@@ -1445,47 +1456,47 @@ struct AIAssistantWindow: View
             Spacer()
 
             // 🧪 Debug 菜单按钮（仅在 DEBUG 模式下显示）
-            #if DEBUG
-            Menu {
-                Button(action: {
-                    print("🧪【显示测试球面区域】")
-                    showTestSphericalRegion()
-                }) {
-                    Label("显示测试区域", systemImage: "scope")
-                }
-                
-                Button(action: {
-                    print("🧪【测试坐标转换】")
-                    testCoordinateMapping()
-                }) {
-                    Label("测试坐标转换", systemImage: "arrow.triangle.2.circlepath")
-                }
-                
-                Button(action: {
-                    print("🧪【模拟AI识别】")
-                    simulateAISendWithTestRegion()
-                }) {
-                    Label("模拟AI识别", systemImage: "brain")
-                }
-                
-                Divider()
-                
-                Button(role: .destructive, action: {
-                    print("🧪【清除测试区域】")
-                    hideTestSphericalRegion()
-                }) {
-                    Label("清除测试区域", systemImage: "trash")
-                }
-            } label: {
-                Image(systemName: "wrench.and.screwdriver.fill")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.orange)
-                    .padding(6)
-                    .background(Circle().fill(Color.orange.opacity(0.15)))
-            }
-            .buttonStyle(.plain)
-            .help("调试工具")
-            #endif
+//            #if DEBUG
+//            Menu {
+//                Button(action: {
+//                    print("🧪【显示测试球面区域】")
+//                    showTestSphericalRegion()
+//                }) {
+//                    Label("显示测试区域", systemImage: "scope")
+//                }
+//                
+//                Button(action: {
+//                    print("🧪【测试坐标转换】")
+//                    testCoordinateMapping()
+//                }) {
+//                    Label("测试坐标转换", systemImage: "arrow.triangle.2.circlepath")
+//                }
+//                
+//                Button(action: {
+//                    print("🧪【模拟AI识别】")
+//                    simulateAISendWithTestRegion()
+//                }) {
+//                    Label("模拟AI识别", systemImage: "brain")
+//                }
+//                
+//                Divider()
+//                
+//                Button(role: .destructive, action: {
+//                    print("🧪【清除测试区域】")
+//                    hideTestSphericalRegion()
+//                }) {
+//                    Label("清除测试区域", systemImage: "trash")
+//                }
+//            } label: {
+//                Image(systemName: "wrench.and.screwdriver.fill")
+//                    .font(.system(size: 14, weight: .medium))
+//                    .foregroundColor(.orange)
+//                    .padding(6)
+//                    .background(Circle().fill(Color.orange.opacity(0.15)))
+//            }
+//            .buttonStyle(.plain)
+//            .help("调试工具")
+//            #endif
 
             Button(action: {
                 dismissWindow(id: "AIAssistantWindow")

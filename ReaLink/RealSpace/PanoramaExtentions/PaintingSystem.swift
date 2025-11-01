@@ -223,7 +223,7 @@ extension BasicPanoramaView {
         let newPinchPosition = pinchPosition
         let newPinchingState = detectedPinch
         
-        // 🔥 改进的绘画触发逻辑 - 更流畅
+        // 🔥 流畅的绘画触发逻辑
         if newPinchingState && !wasPinching {
             // 🔥 检测到新的捏合 - 记录开始时间和位置
             DispatchQueue.main.async {
@@ -252,11 +252,12 @@ extension BasicPanoramaView {
                 if let currentPos = newPinchPosition {
                     let moveDistance = length(currentPos - startPos)
                     
-                    // 🔥 进一步降低条件1：捏合持续超过0.05秒（极快响应）
-                    let hasStableDuration = duration >= 0.05
+                    // 🔥 流畅：极低的延迟和移动要求
+                    // 条件1：捏合持续超过0.03秒（极快响应）
+                    let hasStableDuration = duration >= 0.03
                     
-                    // 🔥 进一步降低条件2：移动距离超过0.5厘米（极易触发）
-                    let hasMovedEnough = moveDistance >= 0.005
+                    // 条件2：移动距离超过0.3厘米（极易触发）
+                    let hasMovedEnough = moveDistance >= 0.003
                     
                     // 🔥 必须同时满足两个条件才开始绘画
                     if !self.isCurrentlyDrawing && hasStableDuration && hasMovedEnough {
@@ -289,7 +290,7 @@ extension BasicPanoramaView {
         }
     }
     
-    // MARK: - 捏合手势检测
+    // MARK: - 捏合手势检测（流畅版本）
     func checkPinchGesture(for anchor: HandAnchor, skeleton: HandSkeleton) -> (Bool, SIMD3<Float>?) {
         let thumbTransform = anchor.originFromAnchorTransform * skeleton.joint(.thumbTip).anchorFromJointTransform
         let indexTransform = anchor.originFromAnchorTransform * skeleton.joint(.indexFingerTip).anchorFromJointTransform
@@ -302,11 +303,13 @@ extension BasicPanoramaView {
                                      indexTransform.columns.3.z)
         
         let distance = length(thumbPos - indexPos)
-        // 🔥 保持合理的捏合阈值 - 15mm，既能检测到捏合，又不会太敏感
-        let pinchThreshold: Float = 0.015
+        
+        // 🔥 流畅：放宽阈值到 2.0cm（原来1.2cm）
+        let pinchThreshold: Float = 0.020  // 2.0cm
         
         let isPinchDetected = distance < pinchThreshold
         if isPinchDetected {
+            // ✅ 正确位置：使用拇指和食指的中点
             let midPoint = (thumbPos + indexPos) / 2
             return (true, midPoint)
         }
@@ -329,70 +332,22 @@ extension BasicPanoramaView {
                                       middleTransform.columns.3.y,
                                       middleTransform.columns.3.z)
         
-        // 计算手到用户的距离，用于动态调整阈值
-        let userPos = getUserCurrentPosition()
-        let centerPoint = (thumbPos + indexPos + middlePos) / 3
-        let distanceToUser = length(centerPoint - userPos)
-        
-        // 🔥 改进1：超激进的动态阈值 - 远距离大幅放宽
-        // 近距离 (<0.5m): 2.0cm
-        // 中距离 (0.5-1.0m): 3.0cm
-        // 远距离 (1.0-2.0m): 4.5cm
-        // 超远距离 (>2.0m): 6.0cm
-        let basePinchThreshold: Float = 0.020  // 2.0cm（增加33%）
-        let distanceScale = max(1.0, pow(distanceToUser / 0.5, 1.3))  // 加速增长
-        let dynamicThreshold = min(basePinchThreshold * distanceScale, 0.060)  // 最大6cm（翻倍）
-        
         let thumbIndexDistance = length(thumbPos - indexPos)
         let thumbMiddleDistance = length(thumbPos - middlePos)
         let indexMiddleDistance = length(indexPos - middlePos)
         
-        // 计算平均距离
-        let averageDistance = (thumbIndexDistance + thumbMiddleDistance + indexMiddleDistance) / 3
+        // 🔥 流畅：放宽阈值到 2.5cm（原来1.8cm）
+        let pinchThreshold: Float = 0.025  // 2.5cm
         
-        // 🔥 改进2：超宽松判断 - 降低要求
-        // 方案1：平均距离小于阈值（主要条件）
-        let isPinchByAverage = averageDistance < dynamicThreshold
+        // 三个距离都小于阈值才算三指捏合
+        let allDistancesSmall = thumbIndexDistance < pinchThreshold &&
+                               thumbMiddleDistance < pinchThreshold &&
+                               indexMiddleDistance < pinchThreshold
         
-        // 方案2：至少1对手指靠近（降低要求：从2对改为1对）
-        var closeCount = 0
-        if thumbIndexDistance < dynamicThreshold { closeCount += 1 }
-        if thumbMiddleDistance < dynamicThreshold { closeCount += 1 }
-        if indexMiddleDistance < dynamicThreshold { closeCount += 1 }
-        
-        let isPinchByPairs = closeCount >= 1  // 只要有1对手指靠近即可
-        
-        // 🔥 改进3：组合判断 - 使用OR逻辑（只要满足一个条件即可）
-        let isPinchDetected = isPinchByAverage || isPinchByPairs
-        
-        if isPinchDetected {
-            // 🔥 改进4：对三指中心点使用额外的平滑
-            // 三指比二指更不稳定，需要更多平滑
-            let rawCenter = centerPoint
-            
-            // 使用一个单独的静态变量存储三指中心点的平滑状态
-            struct ThreeFingerSmoothing {
-                static var lastCenter: SIMD3<Float>?
-            }
-            
-            let smoothedCenter: SIMD3<Float>
-            if let lastCenter = ThreeFingerSmoothing.lastCenter {
-                // 对三指使用更强的平滑（alpha=0.2，比普通EMA更平滑）
-                let alpha: Float = 0.2
-                smoothedCenter = alpha * rawCenter + (1 - alpha) * lastCenter
-            } else {
-                smoothedCenter = rawCenter
-            }
-            
-            ThreeFingerSmoothing.lastCenter = smoothedCenter
-            
-            return (true, smoothedCenter)
-        } else {
-            // 重置三指平滑状态
-            struct ThreeFingerSmoothing {
-                static var lastCenter: SIMD3<Float>?
-            }
-            ThreeFingerSmoothing.lastCenter = nil
+        if allDistancesSmall {
+            // ✅ 使用拇指和食指的中点
+            let correctMidPoint = (thumbPos + indexPos) / 2
+            return (true, correctMidPoint)
         }
         
         return (false, nil)

@@ -41,7 +41,7 @@ extension UIColor {
         return UIColor(hue: hue, saturation: newSaturation, brightness: newBrightness, alpha: alpha)
     }
     
-    // 🔥 修复：更智能的发光颜色增强算法
+    // 🔥 修复：更智能的发光颜色增强算法 - 保持原色不过度增强
     func glowEnhancedColor() -> UIColor {
         var hue: CGFloat = 0
         var saturation: CGFloat = 0
@@ -50,22 +50,24 @@ extension UIColor {
         
         self.getHue(&hue, saturation: &saturation, brightness: &brightness, alpha: &alpha)
         
-        // 🔥 关键修复：保持颜色的相对差异
-        // 1. 适度提升饱和度（而不是推到最大）
-        let newSaturation = min(1.0, saturation * 1.3)
+        // 🎨 关键修复：温和增强，保持颜色本质
+        // 1. 轻微提升饱和度，让颜色更鲜艳但不失真
+        let newSaturation = min(1.0, saturation * 1.15)
         
-        // 2. 根据原始亮度动态调整增强幅度
-        // 深色保持较深，浅色保持较浅，避免全部变成纯白
+        // 2. 根据原始亮度智能调整 - 让深色变亮但保持色相差异
         let brightnessBoost: CGFloat
-        if brightness < 0.3 {
-            // 深色：适度提升（2-3倍）
-            brightnessBoost = 2.5
-        } else if brightness < 0.6 {
-            // 中等亮度：中度提升（3-4倍）
-            brightnessBoost = 3.5
+        if brightness < 0.2 {
+            // 非常暗的颜色：需要较大提升才能看见（1.8倍）
+            brightnessBoost = 1.8
+        } else if brightness < 0.4 {
+            // 较暗的颜色：适度提升（1.5倍）
+            brightnessBoost = 1.5
+        } else if brightness < 0.7 {
+            // 中等亮度：轻微提升（1.3倍）
+            brightnessBoost = 1.3
         } else {
-            // 浅色：较大提升（4-5倍）
-            brightnessBoost = 4.5
+            // 已经很亮的颜色：保持原样（1.1倍）
+            brightnessBoost = 1.1
         }
         
         let newBrightness = min(1.0, brightness * brightnessBoost)
@@ -73,7 +75,7 @@ extension UIColor {
         return UIColor(hue: hue, saturation: newSaturation, brightness: newBrightness, alpha: alpha)
     }
     
-    // 🔥 修复：为发光效果应用最终亮度倍增（降低倍数）
+    // 🔥 核心修复：发光倍增器从50降到2.5，保持真实颜色
     func applyGlowMultiplier() -> UIColor {
         var red: CGFloat = 0
         var green: CGFloat = 0
@@ -82,14 +84,18 @@ extension UIColor {
         
         self.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
         
-        // 🔥 关键修复：从 800 降到 50，保持颜色区分度
-        let multiplier: CGFloat = 50.0
+        // 🎨 关键修复：倍增器从 50 降到 2.5，避免颜色过饱和
+        // 2.5 倍足以产生发光效果，同时保持颜色区分度
+        let multiplier: CGFloat = 2.5
         
-        // 🔥 使用更温和的增强公式，避免颜色饱和
-        // 使用平方根函数让深色和浅色保持相对差异
-        let enhanceRed = min(1.0, pow(red, 0.8) * multiplier)
-        let enhanceGreen = min(1.0, pow(green, 0.8) * multiplier)
-        let enhanceBlue = min(1.0, pow(blue, 0.8) * multiplier)
+        // 🎨 使用线性增强，保持颜色的相对关系
+        // 例如：红色(1,0,0) -> (2.5,0,0) -> clamp到(1,0,0)仍是纯红
+        //       深红(0.5,0,0) -> (1.25,0,0) -> clamp到(1,0,0)变亮但保持纯红
+        //       粉红(1,0.5,0.5) -> (2.5,1.25,1.25) -> clamp到(1,1,1)会偏白
+        // 所以需要更温和的处理
+        let enhanceRed = min(1.0, red * multiplier)
+        let enhanceGreen = min(1.0, green * multiplier)
+        let enhanceBlue = min(1.0, blue * multiplier)
         
         return UIColor(
             red: enhanceRed,
@@ -169,19 +175,34 @@ struct BrushConfig {
             return SimpleMaterial(color: enhancedColor, roughness: .float(0.01), isMetallic: true)
             
         case .emissive:
-            // 🔥 核心修复：使用新的发光颜色算法
-            // 1. 先进行智能的HSB增强（保持颜色差异）
-            let glowEnhanced = color.glowEnhancedColor()
+            // 🔥 核心修复：保持原色，只做轻微增强
+            // 不再使用复杂的HSB增强，避免颜色失真
             
-            // 2. 再应用温和的亮度倍增（从800降到50）
-            let finalGlowColor = glowEnhanced.applyGlowMultiplier()
+            var red: CGFloat = 0
+            var green: CGFloat = 0
+            var blue: CGFloat = 0
+            var alpha: CGFloat = 0
             
-            var material = UnlitMaterial(color: finalGlowColor)
+            color.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
             
-            print("🎨 发光颜色处理:")
-            print("   原始颜色: \(color)")
-            print("   HSB增强后: \(glowEnhanced)")
-            print("   最终发光: \(finalGlowColor)")
+            // 🎨 轻微增强亮度（1.2倍），保持颜色差异
+            let brightnessFactor: CGFloat = 1.2
+            let enhancedRed = min(1.0, red * brightnessFactor)
+            let enhancedGreen = min(1.0, green * brightnessFactor)
+            let enhancedBlue = min(1.0, blue * brightnessFactor)
+            
+            let finalColor = UIColor(
+                red: enhancedRed,
+                green: enhancedGreen,
+                blue: enhancedBlue,
+                alpha: alpha
+            )
+            
+            var material = UnlitMaterial(color: finalColor)
+            
+            print("🎨 发光颜色处理（保持原色）:")
+            print("   原始RGB: (\(red), \(green), \(blue))")
+            print("   增强RGB: (\(enhancedRed), \(enhancedGreen), \(enhancedBlue))")
             
             return material
             

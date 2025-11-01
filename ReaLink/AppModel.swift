@@ -4,6 +4,11 @@
 //
 //  Created by douer_lucky on 2025.06.18.
 //
+//  🎯 移动应用创新赛演示版本
+//  默认地图中心已修改为固定演示坐标：
+//  - 纬度: 30.477018
+//  - 经度: 114.354233
+//
 
 import SwiftUI
 import MapKit
@@ -35,7 +40,7 @@ struct SavedMapState {
     init(
         selectedAddressId: UUID? = nil,
         mapPosition: MapCameraPosition = .automatic,
-        currentCenter: CLLocationCoordinate2D = CLLocationCoordinate2D(latitude: 30.4747, longitude: 114.3489),
+        currentCenter: CLLocationCoordinate2D = CLLocationCoordinate2D(latitude: 30.477018, longitude: 114.354233),  // 🎯 演示固定坐标
         currentSpan: MKCoordinateSpan = MKCoordinateSpan(latitudeDelta: 0.01, longitudeDelta: 0.01),
         isQuestionsPanelVisible: Bool = false,
         currentQuestionIndex: Int = 0

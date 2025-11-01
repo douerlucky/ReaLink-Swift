@@ -259,11 +259,13 @@ extension PaintingHandTracking {
         
         // 计算距离
         let distance = length(thumbPos - indexPos)
-        let pinchThreshold: Float = 0.015  // 1.5厘米
+        
+        // 🔥 流畅：放宽阈值到 2.0cm
+        let pinchThreshold: Float = 0.020  // 2.0cm
         
         let isPinchDetected = distance < pinchThreshold
         if isPinchDetected {
-            // 使用两指中点作为绘画位置，更稳定
+            // ✅ 使用两指中点作为绘画位置
             let midPoint = (thumbPos + indexPos) / 2
             return (true, midPoint)
         }
@@ -294,8 +296,8 @@ extension PaintingHandTracking {
         let thumbMiddleDistance = length(thumbPos - middlePos)
         let indexMiddleDistance = length(indexPos - middlePos)
         
-        // 三指捏合的阈值
-        let pinchThreshold: Float = 0.015  // 1.5厘米
+        // 🔥 流畅：放宽阈值到 2.5cm
+        let pinchThreshold: Float = 0.025  // 2.5cm
         
         // 三个距离都小于阈值才算三指捏合
         let allDistancesSmall = thumbIndexDistance < pinchThreshold &&
@@ -303,9 +305,9 @@ extension PaintingHandTracking {
                                indexMiddleDistance < pinchThreshold
         
         if allDistancesSmall {
-            // 使用三指的中心点作为绘画位置
-            let centerPoint = (thumbPos + indexPos + middlePos) / 3
-            return (true, centerPoint)
+            // ✅ 修复：使用拇指和食指的中点（不是三指中点）
+            let correctMidPoint = (thumbPos + indexPos) / 2
+            return (true, correctMidPoint)
         }
         
         return (false, nil)

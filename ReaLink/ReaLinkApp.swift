@@ -385,6 +385,12 @@ struct ReaLinkApp: App {
                 .onChange(of: scenePhase) { oldPhase, newPhase in
                     handleScenePhaseChange(oldPhase: oldPhase, newPhase: newPhase)
                 }
+                .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ForceBackgroundCleanup"))) { _ in
+                    print("🚨【收到强制后台清理通知】")
+                    if !isCleaningUp {
+                        performBackgroundCleanup()
+                    }
+                }
         }
         
         // 沉浸式空间

@@ -344,7 +344,6 @@ struct QuestionView: View
                             Text("取消绘制")
                         }
                         .buttonStyle(.borderedProminent)
-                        .clipShape(Circle())
                         .buttonBorderShape(.circle)  // 添加圆形边框
                         .hoverEffect(.highlight)
                         .padding(.horizontal, 20)
@@ -452,28 +451,23 @@ struct QuestionView: View
 
     private func loadUserLocationForQuestion()
     {
-        guard !hasAttemptedLocation else { return }
+        // 🎯 【演示版本】无论什么情况都使用固定演示位置
+        print("🗺️ 【演示版本】强制使用固定演示位置...")
+        
         hasAttemptedLocation = true
-
-        print("🗺️ 开始获取用户位置用于提问...")
-
         isLoadingLocation = true
-        locationManager.requestLocationPermission()
 
-        // 延迟检查位置并执行反向地理编码
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5)
+        // 🎯 直接使用固定的演示坐标（移动应用创新赛专用）
+        let demoCoordinate = CLLocationCoordinate2D(
+            latitude: 30.477018,   // 固定纬度
+            longitude: 114.354233  // 固定经度
+        )
+
+        // 延迟执行反向地理编码
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5)
         {
-            if let location = locationManager.currentLocation
-            {
-                print("✅ 使用用户位置: \(location.coordinate)")
-                self.performReverseGeocoding(for: location.coordinate)
-            }
-            else
-            {
-                print("⚠️ 无法获取用户位置，不设置默认地址")
-                self.isLoadingLocation = false
-                // 不设置默认位置，让用户手动搜索
-            }
+            print("✅ 强制使用固定演示位置: \(demoCoordinate)")
+            self.performReverseGeocoding(for: demoCoordinate)
         }
     }
 
@@ -481,6 +475,9 @@ struct QuestionView: View
 
     private func performReverseGeocoding(for coordinate: CLLocationCoordinate2D)
     {
+        // 🎯 【演示版本】即使已有地址也强制使用固定坐标
+        print("🌍 执行反向地理编码: \(coordinate)")
+        
         let location = CLLocation(latitude: coordinate.latitude, longitude: coordinate.longitude)
         let geocoder = CLGeocoder()
 
@@ -516,13 +513,13 @@ struct QuestionView: View
 
                 let addressString = addressComponents.joined(separator: ", ")
 
-                // 设置地址
+                // 🎯 【演示版本】强制设置地址,覆盖任何已有地址
                 self.addressSearch = addressString
                 self.selectedAddressMapItem = mapItem
                 self.defaultMapItem = mapItem
                 self.selectedMapItem = mapItem
 
-                print("✅ 地址已自动填充: \(addressString)")
+                print("✅ 地址已强制填充: \(addressString)")
                 print("✅ 坐标: \(coordinate.latitude), \(coordinate.longitude)")
 
                 self.checkNearbyLocationWith3DView(coordinate: coordinate)
@@ -543,7 +540,7 @@ struct QuestionView: View
                 let nearbyResponse = try await NetworkManager.shared.findNearestLocationQuestions(
                     latitude: coordinate.latitude,
                     longitude: coordinate.longitude,
-                    maxDistance: 50  // 🔧 修改：限制为50米范围内搜索，避免误匹配远处的位置
+                    maxDistance: 1000
                 )
 
                 await MainActor.run
@@ -1464,7 +1461,7 @@ struct QuestionPublishSidebar: View
                                                 Image(systemName: "checkmark.circle.fill")
                                                     .foregroundColor(.green)
                                                     .font(.caption)
-                                                Text("已设置3D位置")
+                                                Text("已设置全景位置")
                                                     .font(.caption)
                                                     .fontWeight(.medium)
                                                     .foregroundColor(.green)
@@ -1478,7 +1475,7 @@ struct QuestionPublishSidebar: View
                                                     Text("清除")
                                                 }
                                                 .font(.caption)
-                                                .foregroundColor(.red)
+                                                .foregroundColor(.white)
                                             }
                                             .buttonStyle(.bordered)
                                             .tint(.red)
@@ -1671,6 +1668,46 @@ struct QuestionPublishSidebar: View
                     if self.has3DView && self.currentLocation != nil
                     {
                         self.loadThumbnailIfNeeded()
+                    }
+                }
+            }
+            // ✅ 修复：监听currentLocation变化，清空旧缩略图并重新加载
+            .onChange(of: currentLocation?.id)
+            { oldValue, newValue in
+                if oldValue != newValue
+                {
+                    print("🔄 位置变化，清空旧缩略图: \(oldValue ?? -1) -> \(newValue ?? -1)")
+                    // 清空旧的缩略图
+                    thumbnailImage = nil
+                    isLoadingThumbnail = false
+                    
+                    // 延迟加载新缩略图
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5)
+                    {
+                        if self.has3DView && self.currentLocation != nil
+                        {
+                            self.loadThumbnailIfNeeded()
+                        }
+                    }
+                }
+            }
+            // ✅ 新增：监听has3DView变化，当3D视图可用时加载缩略图
+            .onChange(of: has3DView)
+            { oldValue, newValue in
+                if !oldValue && newValue
+                {
+                    print("🔄 3D视图可用，加载缩略图")
+                    // 清空旧的缩略图
+                    thumbnailImage = nil
+                    isLoadingThumbnail = false
+                    
+                    // 延迟加载新缩略图
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5)
+                    {
+                        if self.has3DView && self.currentLocation != nil
+                        {
+                            self.loadThumbnailIfNeeded()
+                        }
                     }
                 }
             }

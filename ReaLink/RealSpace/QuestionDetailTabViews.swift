@@ -53,7 +53,7 @@ struct SpatialPaintingTab: View
                 // Header状态显示
                 HStack
                 {
-                    Text("空间批注(Beta)")
+                    Text("空间批注")
                         .font(.title2)
                         .fontWeight(.semibold)
 
@@ -106,21 +106,22 @@ struct SpatialPaintingTab: View
                                     { newValue in
                                         print("🎨 画笔大小调整为: \(newValue)mm")
                                     }
+                                // 保存状态显示
+                                if !paintingSaveStatus.isEmpty
+                                {
+                                    Text(paintingSaveStatus)
+                                        .font(.caption)
+                                        .foregroundColor(paintingSaveStatus.contains("成功") ? .green : .white)
+                                        .multilineTextAlignment(.center)
+                                        .frame(maxWidth: .infinity)
+                                }
                             }
                         }
                         .padding(20)
                         .background(.ultraThinMaterial)
                         .cornerRadius(16)
 
-                        // 保存状态显示
-                        if !paintingSaveStatus.isEmpty
-                        {
-                            Text(paintingSaveStatus)
-                                .font(.caption)
-                                .foregroundColor(paintingSaveStatus.contains("成功") ? .green : .red)
-                                .multilineTextAlignment(.center)
-                                .frame(maxWidth: .infinity)
-                        }
+                        
 
                         // 使用提示信息
                         VStack(alignment: .leading, spacing: 8)

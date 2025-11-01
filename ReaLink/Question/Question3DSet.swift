@@ -73,34 +73,6 @@ struct Question3DSet: View {
                     }
             )
             
-            // 顶部提示UI
-            VStack {
-                HStack {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("🎯 设置问题位置")
-                            .font(.title2)
-                            .fontWeight(.bold)
-                            .foregroundColor(.white)
-                        
-                        Text("拖动橙色球体到合适位置，单击球体确认位置")
-                            .font(.subheadline)
-                            .foregroundColor(.white.opacity(0.8))
-                    }
-                    
-                    Spacer()
-                    
-                    Button("取消") {
-                        handleCancel()
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.red)
-                }
-                .padding()
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
-                .padding()
-                
-                Spacer()
-            }
             
         }
         .onAppear {

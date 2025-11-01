@@ -3,6 +3,19 @@ import Foundation
 import MapKit
 import SwiftUI
 
+// ============================================================
+// 🎯 移动应用创新赛演示版本
+// ============================================================
+// 说明：为了演示方便，本文件已将WiFi定位功能注释
+// 固定定位坐标：
+//   - 纬度 (Latitude): 30.477018
+//   - 经度 (Longitude): 114.354233
+// 适用场景：
+//   - 真机演示
+//   - 模拟器测试
+//   - 从ImmersiveView退出到MainTabView
+// ============================================================
+
 // MARK: - 增强的地图项模型
 
 struct MapItem: Identifiable
@@ -89,10 +102,10 @@ struct ExploreView: View
     
     @State private var isUpdatingMapCenter = false
 
-    // 默认位置（作为后备）
+    // 🎯 演示用固定位置（移动应用创新赛专用）
     private let defaultLocation = CLLocationCoordinate2D(
-        latitude: 30.4747,
-        longitude: 114.3489
+        latitude: 30.477018,  // 固定纬度
+        longitude: 114.354233  // 固定经度
     )
 
     private var mapItemsWithColors: [(MKMapItem, UIColor)]
@@ -246,6 +259,8 @@ struct ExploreView: View
                         )
                         .padding()
 
+                        // 🎯 【演示版】定位状态显示已注释（使用固定坐标）
+                        /*
                         // 显示定位状态或错误
                         if locationManager.isRequestingLocation
                         {
@@ -273,6 +288,7 @@ struct ExploreView: View
                                 .cornerRadius(8)
                                 .padding(.horizontal)
                         }
+                        */
 
                         Spacer()
                     }
@@ -370,10 +386,14 @@ struct ExploreView: View
             return
         }
 
-        print("🗺️ 开始获取用户位置用于探索...")
-        locationManager.requestLocationPermission()
+        // 🎯 【移动应用创新赛演示版本】
+        // 为了演示方便，WiFi定位功能已被注释，使用固定坐标
+        print("🗺️ 使用固定演示位置...")
+        
+        // ⚠️ 以下WiFi定位代码已注释（演示用）
+        // locationManager.requestLocationPermission()
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5)  // 缩短延迟
         {
             // 🔧 再次检查是否仍需要更新
             guard self.isViewActive
@@ -383,6 +403,14 @@ struct ExploreView: View
                 return
             }
 
+            // 🎯 直接使用固定的演示坐标（不再依赖WiFi定位）
+            print("✅ 使用固定演示位置: \(self.defaultLocation)")
+            self.targetMapCenter = self.defaultLocation
+            self.shouldUpdateMapCenter = true
+            self.mapUpdateTrigger = UUID()
+            
+            // ⚠️ 以下代码已注释（原WiFi定位逻辑）
+            /*
             if let location = locationManager.currentLocation
             {
                 print("✅ 使用用户位置: \(location.coordinate)")
@@ -397,6 +425,7 @@ struct ExploreView: View
                 self.shouldUpdateMapCenter = true
                 self.mapUpdateTrigger = UUID()
             }
+            */
         }
     }
 
